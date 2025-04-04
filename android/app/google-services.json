@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "911307464919",
+    "project_id": "ipara-fd373",
+    "storage_bucket": "ipara-fd373.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:911307464919:android:9d88a0f78542bb3155d092",
+        "android_client_info": {
+          "package_name": "com.example.ipara_new"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBorFK55oUNa4KX6ib1kFbncVspFSmBpZE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
