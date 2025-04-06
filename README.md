@@ -1,16 +1,88 @@
-# ipara_new
+# iPara - PUV Tracking App
 
-A new Flutter project.
+A Flutter application for tracking public utility vehicles (PUVs) in real-time.
 
-## Getting Started
+## Requirements
 
-This project is a starting point for a Flutter application.
+- Flutter SDK (version 3.0.0 or higher)
+- Dart SDK (version 3.0.0 or higher)
+- Android Studio / VS Code with Flutter extensions
+- Google Maps API Key
+- Firebase project setup
 
-A few resources to get you started if this is your first Flutter project:
+## Setup Instructions
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+1. **Clone the repository**
+   ```bash
+   git clone [your-repository-url]
+   cd ipara
+   ```
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+2. **Install dependencies**
+   ```bash
+   flutter pub get
+   ```
+
+3. **Configure Google Maps API Key**
+   - For Android: Update `android/app/src/main/AndroidManifest.xml`
+   - For iOS: Update `ios/Runner/AppDelegate.swift`
+   - For Web: Update `web/index.html`
+
+4. **Configure Firebase**
+   - Create a new Firebase project
+   - Add Android and iOS apps to your Firebase project
+   - Download and add the configuration files:
+     - Android: `google-services.json` to `android/app/`
+     - iOS: `GoogleService-Info.plist` to `ios/Runner/`
+
+5. **Run the app**
+   ```bash
+   flutter run
+   ```
+
+## Project Structure
+
+```
+lib/
+├── models/          # Data models
+├── screens/         # UI screens
+├── services/        # Business logic and services
+├── widgets/         # Reusable UI components
+└── main.dart        # Entry point
+```
+
+## Features
+
+- Real-time PUV tracking
+- User location tracking
+- Interactive map interface
+- Route information
+- Estimated arrival times
+
+## Dependencies
+
+Key dependencies are listed in `pubspec.yaml`:
+
+- `google_maps_flutter`: ^2.5.3
+- `geolocator`: ^10.1.0
+- `firebase_core`: ^2.0.0
+- `cloud_firestore`: ^4.0.0
+- `permission_handler`: ^11.3.0
+
+## Platform Support
+
+- Android
+- iOS
+- Web
+
+## Contributing
+
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
+3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
+4. Push to the branch (`git push origin feature/AmazingFeature`)
+5. Open a Pull Request
+
+## License
+
+This project is licensed under the MIT License - see the LICENSE file for details.

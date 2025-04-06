@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter/services.dart';
-import '../main.dart';
 import 'package:ipara_new/screens/edit_profile_screen.dart';
+import '../widgets/home_map_widget.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -20,13 +18,13 @@ class _HomeScreenState extends State<HomeScreen>
   late Animation<double> _drawerAnimation;
   final TextEditingController _destinationController = TextEditingController();
   bool _isSearching = false;
-  List<String> _recentDestinations = [
+  final List<String> _recentDestinations = [
     'SM Mall',
     'Liceo University',
     'Xavier University',
     'City Hall',
   ];
-  List<String> _suggestedDestinations = [
+  final List<String> _suggestedDestinations = [
     'Centrio Mall',
     'Robinsons Mall',
     'Gaisano Mall',
@@ -101,60 +99,34 @@ class _HomeScreenState extends State<HomeScreen>
             child: SafeArea(
               child: Column(
                 children: [
-                  // Top Bar with Menu and Location
+                  // Header
                   Padding(
                     padding: const EdgeInsets.all(16.0),
                     child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        // Menu Button
                         IconButton(
-                          icon: const Icon(Icons.menu, color: Colors.white),
+                          icon: Icon(Icons.menu, color: Colors.white),
                           onPressed: _toggleDrawer,
                         ),
-                        const SizedBox(width: 16),
-                        // Location Display
-                        Expanded(
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 8,
-                            ),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Row(
-                              children: [
-                                const Icon(
-                                  Icons.location_on,
-                                  color: Color(0xFFE94560),
-                                ),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      const Text(
-                                        'Current Location',
-                                        style: TextStyle(
-                                          color: Colors.white70,
-                                          fontSize: 12,
-                                        ),
-                                      ),
-                                      const Text(
-                                        'Cagayan de Oro City',
-                                        style: TextStyle(
-                                          color: Colors.white,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ),
+                        Text(
+                          'iPara',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold,
                           ),
+                        ),
+                        IconButton(
+                          icon: Icon(Icons.person, color: Colors.white),
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => EditProfileScreen(),
+                              ),
+                            );
+                          },
                         ),
                       ],
                     ),
@@ -393,44 +365,16 @@ class _HomeScreenState extends State<HomeScreen>
                   ),
                   const SizedBox(height: 16),
 
-                  // Map Placeholder
+                  // Map in the placeholder area
                   Expanded(
                     child: Padding(
                       padding: const EdgeInsets.all(16.0),
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: const Center(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(
-                                Icons.map,
-                                size: 64,
-                                color: Color(0xFFE94560),
-                              ),
-                              SizedBox(height: 16),
-                              Text(
-                                'Map View',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              SizedBox(height: 8),
-                              Text(
-                                'Google Maps integration coming soon',
-                                style: TextStyle(
-                                  color: Colors.white70,
-                                  fontSize: 14,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
+                      child: HomeMapWidget(
+                        onDestinationSelected: (destination) {
+                          setState(() {
+                            _destinationController.text = destination;
+                          });
+                        },
                       ),
                     ),
                   ),
