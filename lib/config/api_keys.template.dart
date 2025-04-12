@@ -9,7 +9,9 @@ class ApiKeys {
   static const String googleMapsWeb = 'YOUR_WEB_MAPS_API_KEY';
 
   // Firebase API keys (if needed separately from google-services.json)
-  static const String firebaseApiKey = 'YOUR_FIREBASE_API_KEY';
+  static const String firebaseIOS = 'YOUR_IOS_FIREBASE_API_KEY';
+  static const String firebaseAndroid = 'YOUR_ANDROID_FIREBASE_API_KEY';
+  static const String firebaseWeb = 'YOUR_WEB_FIREBASE_API_KEY';
 
   // Other API keys
   // static const String otherServiceKey = 'YOUR_OTHER_SERVICE_KEY';
