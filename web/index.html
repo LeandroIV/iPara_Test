@@ -32,8 +32,14 @@
   <title>iPara</title>
   <link rel="manifest" href="manifest.json">
 
+  <!-- Load API config first -->
+  <script src="js/api_config.js"></script>
+  
   <!-- Google Maps JavaScript API -->
-  <script src="https://maps.googleapis.com/maps/api/js?key=API_KEY_HERE&libraries=places"></script>
+  <script>
+    // Use the API key from api_config.js
+    document.write('<script src="https://maps.googleapis.com/maps/api/js?key=' + window.googleMapsApiKey + '&libraries=places"><\/script>');
+  </script>
 
   <script>
     // The value below is injected by flutter build, do not touch.
@@ -41,7 +47,6 @@
   </script>
   <!-- This script adds the flutter initialization JS code -->
   <script src="flutter.js" defer></script>
-  <script src="js/api_config.js"></script>
   <script>
     window.addEventListener('load', function(ev) {
       // Download main.dart.js
