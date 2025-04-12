@@ -70,7 +70,7 @@ class HomeMapWidgetState extends State<HomeMapWidget> {
           '?input=$query'
           '&location=${position.latitude},${position.longitude}'
           '&radius=50000' // 50km radius
-          '&key=${kIsWeb ? ApiKeys.googleMapsWeb : ApiKeys.googleMapsAndroid}', // Use appropriate API key based on platform
+          '&key=AIzaSyDtm_kDatDOlKtvEMCA5lcVRFyTM6f6NNk', // Use the web API key directly
         ),
       );
 
@@ -108,7 +108,7 @@ class HomeMapWidgetState extends State<HomeMapWidget> {
           'https://maps.googleapis.com/maps/api/place/details/json'
           '?place_id=$placeId'
           '&fields=geometry,name,formatted_address'
-          '&key=${kIsWeb ? ApiKeys.googleMapsWeb : ApiKeys.googleMapsAndroid}', // Use appropriate API key based on platform
+          '&key=AIzaSyDtm_kDatDOlKtvEMCA5lcVRFyTM6f6NNk', // Use the web API key directly
         ),
       );
 
