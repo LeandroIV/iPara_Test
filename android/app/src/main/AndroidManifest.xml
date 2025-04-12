@@ -17,7 +17,7 @@
         <!-- Google Maps API Key -->
         <meta-data
             android:name="com.google.android.geo.API_KEY"
-            android:value="AIzaSyCMdZD3iBNMayiixt5--RcCsWFdQuisZEw"/>
+            android:value="API_KEY_HERE"/>
 
         <!-- Enable high accuracy location -->
         <meta-data
