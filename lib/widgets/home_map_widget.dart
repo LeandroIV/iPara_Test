@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'dart:async';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import '../config/api_keys.dart';
 
 class HomeMapWidget extends StatefulWidget {
   final Function(String) onDestinationSelected;
@@ -69,7 +70,7 @@ class HomeMapWidgetState extends State<HomeMapWidget> {
           '?input=$query'
           '&location=${position.latitude},${position.longitude}'
           '&radius=50000' // 50km radius
-          '&key=YOUR_GOOGLE_MAPS_API_KEY', // Replace with your API key
+          '&key=${kIsWeb ? ApiKeys.googleMapsWeb : ApiKeys.googleMapsAndroid}', // Use appropriate API key based on platform
         ),
       );
 
@@ -107,7 +108,7 @@ class HomeMapWidgetState extends State<HomeMapWidget> {
           'https://maps.googleapis.com/maps/api/place/details/json'
           '?place_id=$placeId'
           '&fields=geometry,name,formatted_address'
-          '&key=YOUR_GOOGLE_MAPS_API_KEY', // Replace with your API key
+          '&key=${kIsWeb ? ApiKeys.googleMapsWeb : ApiKeys.googleMapsAndroid}', // Use appropriate API key based on platform
         ),
       );
 
