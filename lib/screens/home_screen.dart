@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:ipara_new/screens/edit_profile_screen.dart';
 import '../widgets/home_map_widget.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -18,18 +19,38 @@ class _HomeScreenState extends State<HomeScreen>
   late Animation<double> _drawerAnimation;
   final TextEditingController _destinationController = TextEditingController();
   bool _isSearching = false;
-  final List<String> _recentDestinations = [
-    'SM Mall',
-    'Liceo University',
-    'Xavier University',
-    'City Hall',
+  final GlobalKey<HomeMapWidgetState> _mapKey = GlobalKey<HomeMapWidgetState>();
+
+  // Updated location data with coordinates
+  final List<Map<String, dynamic>> _locations = [
+    {
+      'name': 'Centrio Mall',
+      'address': 'CM Recto Avenue, Cagayan de Oro',
+      'coordinates': const LatLng(8.4815, 124.6499),
+    },
+    {
+      'name': 'Limketkai Center',
+      'address': 'Limketkai Drive, Cagayan de Oro',
+      'coordinates': const LatLng(8.4827, 124.6472),
+    },
+    {
+      'name': 'SM CDO Downtown Premier',
+      'address': 'Claro M. Recto Avenue, Cagayan de Oro',
+      'coordinates': const LatLng(8.4755, 124.6445),
+    },
+    {
+      'name': 'Cogon Market',
+      'address': 'Osmeña Street, Cagayan de Oro',
+      'coordinates': const LatLng(8.4847, 124.6472),
+    },
+    {
+      'name': 'Divisoria',
+      'address': 'Corrales Avenue, Cagayan de Oro',
+      'coordinates': const LatLng(8.4778, 124.6472),
+    },
   ];
-  final List<String> _suggestedDestinations = [
-    'Centrio Mall',
-    'Robinsons Mall',
-    'Gaisano Mall',
-    'Divisoria',
-  ];
+
+  List<Map<String, dynamic>> _filteredLocations = [];
 
   // Placeholder data for PUV counts
   final Map<String, int> puvCounts = {
@@ -93,7 +114,7 @@ class _HomeScreenState extends State<HomeScreen>
               gradient: LinearGradient(
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
-                colors: [Color(0xFF1A1A2E), Color(0xFF16213E)],
+                colors: [Colors.black, Color(0xFF1A1A1A)],
               ),
             ),
             child: SafeArea(
@@ -151,7 +172,7 @@ class _HomeScreenState extends State<HomeScreen>
                             children: [
                               const Icon(
                                 Icons.location_searching,
-                                color: Color(0xFFE94560),
+                                color: Colors.amber,
                               ),
                               const SizedBox(width: 8),
                               Expanded(
@@ -159,7 +180,7 @@ class _HomeScreenState extends State<HomeScreen>
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     const Text(
-                                      'Select your destination',
+                                      'Select your Destination',
                                       style: TextStyle(
                                         color: Colors.white70,
                                         fontSize: 12,
@@ -171,16 +192,43 @@ class _HomeScreenState extends State<HomeScreen>
                                         color: Colors.white,
                                       ),
                                       decoration: const InputDecoration(
-                                        hintText: 'Where do you want to go?',
+                                        hintText: 'Where to?',
                                         hintStyle: TextStyle(
                                           color: Colors.white54,
                                         ),
                                         border: InputBorder.none,
                                         contentPadding: EdgeInsets.zero,
                                       ),
+                                      onChanged: (value) {
+                                        setState(() {
+                                          if (value.isEmpty) {
+                                            _filteredLocations = [];
+                                          } else {
+                                            _filteredLocations =
+                                                _locations
+                                                    .where(
+                                                      (location) =>
+                                                          location['name']
+                                                              .toLowerCase()
+                                                              .contains(
+                                                                value
+                                                                    .toLowerCase(),
+                                                              ) ||
+                                                          location['address']
+                                                              .toLowerCase()
+                                                              .contains(
+                                                                value
+                                                                    .toLowerCase(),
+                                                              ),
+                                                    )
+                                                    .toList();
+                                          }
+                                        });
+                                      },
                                       onTap: () {
                                         setState(() {
                                           _isSearching = true;
+                                          _filteredLocations = _locations;
                                         });
                                       },
                                     ),
@@ -197,12 +245,26 @@ class _HomeScreenState extends State<HomeScreen>
                                     setState(() {
                                       _isSearching = false;
                                       _destinationController.clear();
+                                      _filteredLocations = [];
+                                    });
+                                  },
+                                ),
+                              if (!_isSearching)
+                                IconButton(
+                                  icon: const Icon(
+                                    Icons.search,
+                                    color: Colors.amber,
+                                  ),
+                                  onPressed: () {
+                                    setState(() {
+                                      _isSearching = true;
+                                      _filteredLocations = _locations;
                                     });
                                   },
                                 ),
                             ],
                           ),
-                          if (_isSearching)
+                          if (_isSearching && _filteredLocations.isNotEmpty)
                             Container(
                               margin: const EdgeInsets.only(top: 8),
                               padding: const EdgeInsets.all(16.0),
@@ -214,7 +276,7 @@ class _HomeScreenState extends State<HomeScreen>
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   const Text(
-                                    'Recent Destinations',
+                                    'Suggested Locations',
                                     style: TextStyle(
                                       color: Colors.white,
                                       fontSize: 14,
@@ -222,59 +284,50 @@ class _HomeScreenState extends State<HomeScreen>
                                     ),
                                   ),
                                   const SizedBox(height: 8),
-                                  Wrap(
-                                    spacing: 8,
-                                    runSpacing: 8,
-                                    children:
-                                        _recentDestinations.map((destination) {
-                                          return ActionChip(
-                                            label: Text(destination),
-                                            backgroundColor: Colors.white,
-                                            labelStyle: const TextStyle(
-                                              color: Color(0xFF1A1A2E),
-                                            ),
-                                            onPressed: () {
-                                              setState(() {
-                                                _destinationController.text =
-                                                    destination;
-                                                _isSearching = false;
-                                              });
-                                            },
-                                          );
-                                        }).toList(),
-                                  ),
-                                  const SizedBox(height: 16),
-                                  const Text(
-                                    'Suggested Destinations',
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Wrap(
-                                    spacing: 8,
-                                    runSpacing: 8,
-                                    children:
-                                        _suggestedDestinations.map((
-                                          destination,
-                                        ) {
-                                          return ActionChip(
-                                            label: Text(destination),
-                                            backgroundColor: Colors.white,
-                                            labelStyle: const TextStyle(
-                                              color: Color(0xFF1A1A2E),
-                                            ),
-                                            onPressed: () {
-                                              setState(() {
-                                                _destinationController.text =
-                                                    destination;
-                                                _isSearching = false;
-                                              });
-                                            },
-                                          );
-                                        }).toList(),
+                                  ListView.builder(
+                                    shrinkWrap: true,
+                                    physics:
+                                        const NeverScrollableScrollPhysics(),
+                                    itemCount: _filteredLocations.length,
+                                    itemBuilder: (context, index) {
+                                      final location =
+                                          _filteredLocations[index];
+                                      return ListTile(
+                                        leading: const Icon(
+                                          Icons.location_on,
+                                          color: Colors.amber,
+                                        ),
+                                        title: Text(
+                                          location['name'],
+                                          style: const TextStyle(
+                                            color: Colors.white,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                        subtitle: Text(
+                                          location['address'],
+                                          style: const TextStyle(
+                                            color: Colors.white70,
+                                          ),
+                                        ),
+                                        onTap: () {
+                                          setState(() {
+                                            _destinationController.text =
+                                                location['name'];
+                                            _isSearching = false;
+                                            _filteredLocations = [];
+                                          });
+                                          // Update map location
+                                          if (_mapKey.currentState != null) {
+                                            _mapKey.currentState!
+                                                .moveToLocation(
+                                                  location['coordinates'],
+                                                  placeName: location['name'],
+                                                );
+                                          }
+                                        },
+                                      );
+                                    },
                                   ),
                                 ],
                               ),
@@ -318,7 +371,7 @@ class _HomeScreenState extends State<HomeScreen>
                                       style: ElevatedButton.styleFrom(
                                         backgroundColor:
                                             isSelected
-                                                ? const Color(0xFFE94560)
+                                                ? Colors.amber
                                                 : Colors.white.withOpacity(0.1),
                                         padding: const EdgeInsets.symmetric(
                                           horizontal: 24,
@@ -365,17 +418,16 @@ class _HomeScreenState extends State<HomeScreen>
                   ),
                   const SizedBox(height: 16),
 
-                  // Map in the placeholder area
+                  // Map Widget
                   Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.all(16.0),
-                      child: HomeMapWidget(
-                        onDestinationSelected: (destination) {
-                          setState(() {
-                            _destinationController.text = destination;
-                          });
-                        },
-                      ),
+                    child: HomeMapWidget(
+                      key: _mapKey,
+                      onDestinationSelected: (destination) {
+                        setState(() {
+                          _destinationController.text = destination;
+                          _isSearching = false;
+                        });
+                      },
                     ),
                   ),
                 ],
@@ -413,10 +465,10 @@ class _HomeScreenState extends State<HomeScreen>
                     color: Colors.transparent,
                     child: Container(
                       decoration: BoxDecoration(
-                        color: const Color(0xFF1A1A2E),
+                        color: Colors.black,
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withOpacity(0.3),
+                            color: Colors.amber.withOpacity(0.3),
                             blurRadius: 10,
                           ),
                         ],
@@ -551,8 +603,8 @@ class _HomeScreenState extends State<HomeScreen>
                                 icon: const Icon(Icons.logout),
                                 label: const Text('Logout'),
                                 style: ElevatedButton.styleFrom(
-                                  backgroundColor: const Color(0xFFE94560),
-                                  foregroundColor: Colors.white,
+                                  backgroundColor: Colors.amber,
+                                  foregroundColor: Colors.black,
                                   minimumSize: const Size(double.infinity, 50),
                                   shape: RoundedRectangleBorder(
                                     borderRadius: BorderRadius.circular(12),
@@ -587,7 +639,7 @@ class _HomeScreenState extends State<HomeScreen>
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           child: Row(
             children: [
-              Icon(icon, color: const Color(0xFFE94560)),
+              Icon(icon, color: Colors.amber),
               const SizedBox(width: 16),
               Text(
                 title,

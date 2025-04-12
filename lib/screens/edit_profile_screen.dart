@@ -176,7 +176,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         gradient: LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
-          colors: [Color(0xFF1A1A2E), Color(0xFF16213E)],
+          colors: [Colors.black, Color(0xFF1A1A1A)],
         ),
       ),
       child: Scaffold(
@@ -199,7 +199,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                     children: [
                       CircleAvatar(
                         radius: 50,
-                        backgroundColor: const Color(0xFFE94560),
+                        backgroundColor: Colors.amber,
                         backgroundImage:
                             FirebaseAuth.instance.currentUser?.photoURL != null
                                 ? NetworkImage(
@@ -211,7 +211,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                                 ? const Icon(
                                   Icons.person,
                                   size: 50,
-                                  color: Colors.white,
+                                  color: Colors.black,
                                 )
                                 : null,
                       ),
@@ -221,12 +221,12 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                         child: Container(
                           padding: const EdgeInsets.all(4),
                           decoration: const BoxDecoration(
-                            color: Color(0xFFE94560),
+                            color: Colors.amber,
                             shape: BoxShape.circle,
                           ),
                           child: const Icon(
                             Icons.camera_alt,
-                            color: Colors.white,
+                            color: Colors.black,
                             size: 20,
                           ),
                         ),
@@ -254,10 +254,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                       borderRadius: BorderRadius.circular(12),
                       borderSide: BorderSide.none,
                     ),
-                    prefixIcon: const Icon(
-                      Icons.person,
-                      color: Color(0xFFE94560),
-                    ),
+                    prefixIcon: const Icon(Icons.person, color: Colors.amber),
                   ),
                   validator: (value) {
                     if (value == null || value.isEmpty) {
@@ -287,10 +284,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                       borderRadius: BorderRadius.circular(12),
                       borderSide: BorderSide.none,
                     ),
-                    prefixIcon: const Icon(
-                      Icons.email,
-                      color: Color(0xFFE94560),
-                    ),
+                    prefixIcon: const Icon(Icons.email, color: Colors.amber),
                   ),
                 ),
                 const SizedBox(height: 24),
@@ -314,10 +308,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                       borderRadius: BorderRadius.circular(12),
                       borderSide: BorderSide.none,
                     ),
-                    prefixIcon: const Icon(
-                      Icons.phone,
-                      color: Color(0xFFE94560),
-                    ),
+                    prefixIcon: const Icon(Icons.phone, color: Colors.amber),
                   ),
                 ),
                 const SizedBox(height: 32),
@@ -341,10 +332,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                         padding: const EdgeInsets.all(16),
                         child: Row(
                           children: [
-                            const Icon(
-                              Icons.lock_outline,
-                              color: Color(0xFFE94560),
-                            ),
+                            const Icon(Icons.lock_outline, color: Colors.amber),
                             const SizedBox(width: 16),
                             const Expanded(
                               child: Text(
@@ -383,10 +371,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                         borderRadius: BorderRadius.circular(12),
                         borderSide: BorderSide.none,
                       ),
-                      prefixIcon: const Icon(
-                        Icons.lock,
-                        color: Color(0xFFE94560),
-                      ),
+                      prefixIcon: const Icon(Icons.lock, color: Colors.amber),
                       suffixIcon: IconButton(
                         icon: Icon(
                           _showPassword
@@ -418,7 +403,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                       ),
                       prefixIcon: const Icon(
                         Icons.lock_outline,
-                        color: Color(0xFFE94560),
+                        color: Colors.amber,
                       ),
                     ),
                   ),
@@ -438,7 +423,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                       ),
                       prefixIcon: const Icon(
                         Icons.lock_outline,
-                        color: Color(0xFFE94560),
+                        color: Colors.amber,
                       ),
                     ),
                   ),
@@ -449,7 +434,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                     child: ElevatedButton(
                       onPressed: _isLoading ? null : _updatePassword,
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFFE94560),
+                        backgroundColor: Colors.amber,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
@@ -489,7 +474,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   child: ElevatedButton(
                     onPressed: _isLoading ? null : _updateProfile,
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFFE94560),
+                      backgroundColor: Colors.amber,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),

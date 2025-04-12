@@ -91,8 +91,8 @@ yarn-error.log*
 .yarn-integrity
 
 # API Keys and Sensitive Data
-lib/config/api_keys.dart
-web/js/api_config.js
+/lib/config/api_keys.dart
+/web/js/api_config.js
 
 # Firebase configuration files
 google-services.json
@@ -142,3 +142,32 @@ GoogleService-Info.plist
 !**/ios/**/default.pbxuser
 !**/ios/**/default.perspectivev3
 !/packages/flutter_tools/test/data/dart_dependencies_test/**/.packages
+
+# Android specific
+/android/local.properties
+/android/app/google-services.json
+/android/key.properties
+/android/.gradle
+
+# iOS specific
+/ios/Runner/GoogleService-Info.plist
+/ios/Pods/
+/ios/.symlinks/
+/ios/Flutter/Flutter.framework/
+/ios/Flutter/Flutter.podspec
+/ios/Flutter/Generated.xcconfig
+/ios/Flutter/app.flx
+/ios/Flutter/app.zip
+/ios/Flutter/flutter_assets/
+/ios/Flutter/flutter_export_environment.sh
+/ios/ServiceDefinitions.json
+/ios/Runner.xcworkspace/
+/ios/Runner.xcodeproj/project.xcworkspace/
+/ios/Runner.xcodeproj/xcuserdata/
+/ios/Runner.xcodeproj/xcshareddata/
+/ios/Runner.xcodeproj/project.xcworkspace/xcuserdata/
+/ios/Runner.xcodeproj/project.xcworkspace/xcshareddata/
+
+# Web specific
+/web/js/api_config.js
+/web/firebase-config.js

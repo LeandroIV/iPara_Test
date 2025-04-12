@@ -32,12 +32,56 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'iPara App',
       theme: ThemeData(
-        primaryColor: Color(0xFF1A1A2E),
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: Color(0xFFE94560),
-          primary: Color(0xFF1A1A2E),
-          secondary: Color(0xFFE94560),
-        ).copyWith(secondary: Color(0xFFE94560)),
+        primaryColor: Colors.black,
+        scaffoldBackgroundColor: Colors.black,
+        colorScheme: ColorScheme.dark(
+          primary: Colors.amber,
+          secondary: Colors.amber,
+          surface: Colors.black,
+          onPrimary: Colors.black,
+          onSecondary: Colors.white,
+          onSurface: Colors.white,
+        ),
+        appBarTheme: const AppBarTheme(
+          backgroundColor: Colors.black,
+          elevation: 0,
+          iconTheme: IconThemeData(color: Colors.amber),
+          titleTextStyle: TextStyle(
+            color: Colors.white,
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        elevatedButtonTheme: ElevatedButtonThemeData(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.amber,
+            foregroundColor: Colors.black,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+        ),
+        textButtonTheme: TextButtonThemeData(
+          style: TextButton.styleFrom(foregroundColor: Colors.amber),
+        ),
+        inputDecorationTheme: InputDecorationTheme(
+          filled: true,
+          fillColor: Colors.white.withOpacity(0.1),
+          labelStyle: const TextStyle(color: Colors.white70),
+          prefixIconColor: Colors.amber,
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: Colors.white30),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: Colors.amber),
+          ),
+          errorBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: Colors.red),
+          ),
+        ),
       ),
       initialRoute: '/',
       routes: {
@@ -67,7 +111,7 @@ class LoginScreen extends StatelessWidget {
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [Color(0xFF1A1A2E), Color(0xFF16213E)],
+            colors: [Colors.black, Color(0xFF1A1A1A)],
           ),
         ),
         child: SafeArea(
@@ -115,9 +159,7 @@ class LoginScreen extends StatelessWidget {
                           ),
                           focusedBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(
-                              color: Color(0xFFE94560),
-                            ),
+                            borderSide: const BorderSide(color: Colors.amber),
                           ),
                           errorBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
@@ -152,9 +194,7 @@ class LoginScreen extends StatelessWidget {
                           ),
                           focusedBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(
-                              color: Color(0xFFE94560),
-                            ),
+                            borderSide: const BorderSide(color: Colors.amber),
                           ),
                           errorBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
@@ -180,7 +220,7 @@ class LoginScreen extends StatelessWidget {
                           },
                           child: const Text(
                             'Forgot Password?',
-                            style: TextStyle(color: Color(0xFFE94560)),
+                            style: TextStyle(color: Colors.amber),
                           ),
                         ),
                       ),
@@ -223,7 +263,7 @@ class LoginScreen extends StatelessWidget {
                             }
                           },
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFFE94560),
+                            backgroundColor: Colors.amber,
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(12),
                             ),
@@ -258,7 +298,7 @@ class LoginScreen extends StatelessWidget {
                             child: const Text(
                               'Sign Up',
                               style: TextStyle(
-                                color: Color(0xFFE94560),
+                                color: Colors.amber,
                                 fontWeight: FontWeight.bold,
                               ),
                             ),
@@ -667,42 +707,62 @@ class WelcomeScreen extends StatelessWidget {
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [Color(0xFF1A1A2E), Color(0xFF16213E)],
+            colors: [Colors.black, Color(0xFF1A1A1A)],
           ),
         ),
         child: SafeArea(
-          child: Center(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24.0),
             child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Text(
-                  'Welcome to iPara',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 28,
-                    fontWeight: FontWeight.bold,
+                const Spacer(flex: 2),
+                // Logo
+                Image.asset('assets/logo.png', width: 150, height: 150),
+                const Spacer(flex: 1),
+                // Welcome Text
+                Column(
+                  children: [
+                    const Text(
+                      'Welcome to iPara',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 28,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    const Text(
+                      'Your Smart PUV Tracking App',
+                      style: TextStyle(color: Colors.white70, fontSize: 16),
+                    ),
+                  ],
+                ),
+                const Spacer(flex: 2),
+                // Get Started Button
+                SizedBox(
+                  width: double.infinity,
+                  height: 56,
+                  child: ElevatedButton(
+                    onPressed: () {
+                      Navigator.pushReplacementNamed(context, '/home');
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.amber,
+                      foregroundColor: Colors.black,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: const Text(
+                      'Get Started',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                   ),
                 ),
-                const SizedBox(height: 20),
-                ElevatedButton(
-                  onPressed: () {
-                    Navigator.pushReplacementNamed(context, '/home');
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFE94560),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 32,
-                      vertical: 16,
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  child: const Text(
-                    'Get Started',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                  ),
-                ),
+                const Spacer(flex: 1),
               ],
             ),
           ),
