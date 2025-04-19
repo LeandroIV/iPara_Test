@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:ipara_new/screens/edit_profile_screen.dart';
 import '../widgets/home_map_widget.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'dart:async';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -20,6 +21,9 @@ class _HomeScreenState extends State<HomeScreen>
   final TextEditingController _destinationController = TextEditingController();
   bool _isSearching = false;
   final GlobalKey<HomeMapWidgetState> _mapKey = GlobalKey<HomeMapWidgetState>();
+  List<dynamic> _googlePlacesResults = [];
+  bool _isLoadingPlaces = false;
+  Timer? _debounceTimer;
 
   // Updated location data with coordinates
   final List<Map<String, dynamic>> _locations = [
@@ -98,6 +102,48 @@ class _HomeScreenState extends State<HomeScreen>
       }
     } catch (e) {
       print('Error signing out: $e');
+    }
+  }
+
+  void _searchPlaces(String query) async {
+    if (query.isEmpty) {
+      setState(() {
+        _googlePlacesResults = [];
+        _isSearching = false;
+      });
+      return;
+    }
+
+    setState(() {
+      _isLoadingPlaces = true;
+      _isSearching = true;
+    });
+
+    try {
+      // Use the map widget's search functionality
+      if (_mapKey.currentState != null) {
+        final results = await _mapKey.currentState!.searchPlaces(query);
+        setState(() {
+          _googlePlacesResults = results;
+          _isLoadingPlaces = false;
+        });
+      }
+    } catch (e) {
+      print('Error searching places: $e');
+      setState(() {
+        _googlePlacesResults = [];
+        _isLoadingPlaces = false;
+      });
+    }
+  }
+
+  void _selectPlace(dynamic place) async {
+    if (_mapKey.currentState != null) {
+      final placeId = place['place_id'];
+      await _mapKey.currentState!.getPlaceDetails(placeId);
+      setState(() {
+        _isSearching = false;
+      });
     }
   }
 
@@ -200,35 +246,17 @@ class _HomeScreenState extends State<HomeScreen>
                                         contentPadding: EdgeInsets.zero,
                                       ),
                                       onChanged: (value) {
-                                        setState(() {
-                                          if (value.isEmpty) {
-                                            _filteredLocations = [];
-                                          } else {
-                                            _filteredLocations =
-                                                _locations
-                                                    .where(
-                                                      (location) =>
-                                                          location['name']
-                                                              .toLowerCase()
-                                                              .contains(
-                                                                value
-                                                                    .toLowerCase(),
-                                                              ) ||
-                                                          location['address']
-                                                              .toLowerCase()
-                                                              .contains(
-                                                                value
-                                                                    .toLowerCase(),
-                                                              ),
-                                                    )
-                                                    .toList();
-                                          }
-                                        });
+                                        if (_debounceTimer?.isActive ?? false) {
+                                          _debounceTimer!.cancel();
+                                        }
+                                        _debounceTimer = Timer(
+                                          const Duration(milliseconds: 500),
+                                          () => _searchPlaces(value),
+                                        );
                                       },
                                       onTap: () {
                                         setState(() {
                                           _isSearching = true;
-                                          _filteredLocations = _locations;
                                         });
                                       },
                                     ),
@@ -245,7 +273,7 @@ class _HomeScreenState extends State<HomeScreen>
                                     setState(() {
                                       _isSearching = false;
                                       _destinationController.clear();
-                                      _filteredLocations = [];
+                                      _googlePlacesResults = [];
                                     });
                                   },
                                 ),
@@ -258,13 +286,22 @@ class _HomeScreenState extends State<HomeScreen>
                                   onPressed: () {
                                     setState(() {
                                       _isSearching = true;
-                                      _filteredLocations = _locations;
                                     });
                                   },
                                 ),
                             ],
                           ),
-                          if (_isSearching && _filteredLocations.isNotEmpty)
+                          if (_isSearching && _isLoadingPlaces)
+                            Container(
+                              margin: const EdgeInsets.only(top: 8),
+                              child: const Center(
+                                child: CircularProgressIndicator(
+                                  color: Colors.amber,
+                                  strokeWidth: 2,
+                                ),
+                              ),
+                            ),
+                          if (_isSearching && _googlePlacesResults.isNotEmpty)
                             Container(
                               margin: const EdgeInsets.only(top: 8),
                               padding: const EdgeInsets.all(16.0),
@@ -284,50 +321,47 @@ class _HomeScreenState extends State<HomeScreen>
                                     ),
                                   ),
                                   const SizedBox(height: 8),
-                                  ListView.builder(
-                                    shrinkWrap: true,
-                                    physics:
-                                        const NeverScrollableScrollPhysics(),
-                                    itemCount: _filteredLocations.length,
-                                    itemBuilder: (context, index) {
-                                      final location =
-                                          _filteredLocations[index];
-                                      return ListTile(
-                                        leading: const Icon(
-                                          Icons.location_on,
-                                          color: Colors.amber,
-                                        ),
-                                        title: Text(
-                                          location['name'],
-                                          style: const TextStyle(
-                                            color: Colors.white,
-                                            fontWeight: FontWeight.bold,
+                                  ConstrainedBox(
+                                    constraints: BoxConstraints(
+                                      maxHeight:
+                                          MediaQuery.of(context).size.height *
+                                          0.3,
+                                    ),
+                                    child: ListView.builder(
+                                      shrinkWrap: true,
+                                      itemCount: _googlePlacesResults.length,
+                                      itemBuilder: (context, index) {
+                                        final place =
+                                            _googlePlacesResults[index];
+                                        return ListTile(
+                                          leading: const Icon(
+                                            Icons.location_on,
+                                            color: Colors.amber,
                                           ),
-                                        ),
-                                        subtitle: Text(
-                                          location['address'],
-                                          style: const TextStyle(
-                                            color: Colors.white70,
+                                          title: Text(
+                                            place['structured_formatting']?['main_text'] ??
+                                                place['description'] ??
+                                                '',
+                                            style: const TextStyle(
+                                              color: Colors.white,
+                                              fontWeight: FontWeight.bold,
+                                            ),
                                           ),
-                                        ),
-                                        onTap: () {
-                                          setState(() {
-                                            _destinationController.text =
-                                                location['name'];
-                                            _isSearching = false;
-                                            _filteredLocations = [];
-                                          });
-                                          // Update map location
-                                          if (_mapKey.currentState != null) {
-                                            _mapKey.currentState!
-                                                .moveToLocation(
-                                                  location['coordinates'],
-                                                  placeName: location['name'],
-                                                );
-                                          }
-                                        },
-                                      );
-                                    },
+                                          subtitle: Text(
+                                            place['structured_formatting']?['secondary_text'] ??
+                                                '',
+                                            style: const TextStyle(
+                                              color: Colors.white70,
+                                            ),
+                                            maxLines: 2,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                          onTap: () {
+                                            _selectPlace(place);
+                                          },
+                                        );
+                                      },
+                                    ),
                                   ),
                                 ],
                               ),

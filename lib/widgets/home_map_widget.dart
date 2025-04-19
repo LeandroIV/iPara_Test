@@ -6,7 +6,8 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'dart:async';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-import '../config/api_keys.dart';
+import 'dart:js' as js;
+import 'dart:html' as html;
 
 class HomeMapWidget extends StatefulWidget {
   final Function(String) onDestinationSelected;
@@ -23,121 +24,274 @@ class HomeMapWidgetState extends State<HomeMapWidget> {
   bool _isLoading = true;
   final Set<Marker> _markers = {};
   StreamSubscription<Position>? _positionStreamSubscription;
-  final TextEditingController _searchController = TextEditingController();
-  bool _isSearching = false;
-  List<dynamic> _searchResults = [];
   Timer? _debounceTimer;
+  dynamic _placesService;
+  bool _isPlacesApiInitialized = false;
+  Timer? _placesApiCheckTimer;
+  List<dynamic> _searchResults = [];
+
+  // Make search functionality accessible from outside
+  List<dynamic> get searchResults => _searchResults;
 
   @override
   void initState() {
     super.initState();
     _initializeLocation();
+    if (kIsWeb) {
+      _initializePlacesApi();
+    }
+  }
+
+  void _initializePlacesApi() {
+    // Create a hidden div for the map if it doesn't exist
+    var mapDiv = html.document.getElementById('map');
+    if (mapDiv == null) {
+      mapDiv =
+          html.DivElement()
+            ..id = 'map'
+            ..style.visibility = 'hidden'
+            ..style.height = '0px'
+            ..style.width = '0px';
+      html.document.body!.children.add(mapDiv);
+    }
+
+    // Start checking for Places API initialization
+    _placesApiCheckTimer?.cancel();
+    _placesApiCheckTimer = Timer.periodic(const Duration(milliseconds: 100), (
+      timer,
+    ) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+
+      try {
+        if (js.context.hasProperty('google') &&
+            js.context['google'].hasProperty('maps') &&
+            js.context['google']['maps'].hasProperty('places')) {
+          final maps = js.context['google']['maps'];
+          final placesService = js.JsObject(maps['places']['PlacesService'], [
+            mapDiv,
+          ]);
+
+          setState(() {
+            _placesService = placesService;
+            _isPlacesApiInitialized = true;
+          });
+
+          print('Places API initialized successfully');
+          timer.cancel();
+        }
+      } catch (e) {
+        print('Waiting for Places API initialization: $e');
+      }
+    });
   }
 
   @override
   void dispose() {
     _positionStreamSubscription?.cancel();
     _mapController?.dispose();
-    _searchController.dispose();
     _debounceTimer?.cancel();
+    _placesApiCheckTimer?.cancel();
     super.dispose();
   }
 
-  // Search for places using Google Places API
-  Future<void> _searchPlaces(String query) async {
+  // Expose search functionality to be called from parent widget
+  Future<List<dynamic>> searchPlaces(String query) async {
     if (query.isEmpty) {
-      setState(() {
-        _searchResults = [];
-        _isSearching = false;
-      });
-      return;
+      _searchResults = [];
+      return _searchResults;
     }
 
-    setState(() {
-      _isSearching = true;
-    });
-
-    try {
-      // Get the current location for search bias
-      final position = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.reduced,
-      );
-
-      // Use Google Places API to search for places
-      final response = await http.get(
-        Uri.parse(
-          'https://maps.googleapis.com/maps/api/place/autocomplete/json'
-          '?input=$query'
-          '&location=${position.latitude},${position.longitude}'
-          '&radius=50000' // 50km radius
-          '&key=AIzaSyDtm_kDatDOlKtvEMCA5lcVRFyTM6f6NNk', // Use the web API key directly
-        ),
-      );
-
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        if (data['status'] == 'OK') {
-          setState(() {
-            _searchResults = data['predictions'];
-          });
-        } else {
-          print('Places API error: ${data['status']}');
-          setState(() {
-            _searchResults = [];
-          });
-        }
-      } else {
-        print('HTTP error: ${response.statusCode}');
-        setState(() {
-          _searchResults = [];
-        });
+    if (kIsWeb) {
+      if (!_isPlacesApiInitialized) {
+        print('Places API not initialized yet');
+        return [];
       }
-    } catch (e) {
-      print('Error searching places: $e');
-      setState(() {
+
+      try {
+        final position = _userLocation ?? const LatLng(8.4542, 124.6319);
+        final maps = js.context['google']['maps'];
+
+        // Create the AutocompleteService instead of using PlacesService for text search
+        final autocompleteService = js.JsObject(
+          maps['places']['AutocompleteService'],
+        );
+
+        final request = js.JsObject.jsify({
+          'input': query,
+          'location': js.JsObject(maps['LatLng'], [
+            position.latitude,
+            position.longitude,
+          ]),
+          'radius': 50000, // 50km radius
+          'componentRestrictions': {'country': 'PH'},
+        });
+
+        // Create a completer to handle the async response
+        final completer = Completer<List<dynamic>>();
+
+        autocompleteService.callMethod('getPlacePredictions', [
+          request,
+          (predictions, status) {
+            if (status == maps['places']['PlacesServiceStatus']['OK']) {
+              _searchResults = List.from(predictions);
+              completer.complete(_searchResults);
+            } else {
+              print('Places API error: $status');
+              _searchResults = [];
+              completer.complete([]);
+            }
+          },
+        ]);
+
+        return completer.future;
+      } catch (e) {
+        print('Error searching places: $e');
         _searchResults = [];
-      });
+        return [];
+      }
+    } else {
+      // Fallback to HTTP request for non-web platforms
+      try {
+        final position = _userLocation ?? const LatLng(8.4542, 124.6319);
+
+        final response = await http.post(
+          Uri.parse('https://places.googleapis.com/v1/places:searchText'),
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Goog-Api-Key': 'AIzaSyDtm_kDatDOlKtvEMCA5lcVRFyTM6f6NNk',
+            'X-Goog-FieldMask':
+                'places.displayName,places.formattedAddress,places.location',
+          },
+          body: jsonEncode({
+            'textQuery': query,
+            'locationBias': {
+              'circle': {
+                'center': {
+                  'latitude': position.latitude,
+                  'longitude': position.longitude,
+                },
+                'radius': 50000.0,
+              },
+            },
+            'languageCode': 'en',
+            'regionCode': 'PH',
+          }),
+        );
+
+        if (response.statusCode == 200) {
+          final data = json.decode(response.body);
+          if (data['places'] != null) {
+            _searchResults = data['places'];
+            return _searchResults;
+          }
+        }
+        return [];
+      } catch (e) {
+        print('Error searching places: $e');
+        return [];
+      }
     }
   }
 
-  // Get place details from place ID
-  Future<void> _getPlaceDetails(String placeId) async {
-    try {
-      final response = await http.get(
-        Uri.parse(
-          'https://maps.googleapis.com/maps/api/place/details/json'
-          '?place_id=$placeId'
-          '&fields=geometry,name,formatted_address'
-          '&key=AIzaSyDtm_kDatDOlKtvEMCA5lcVRFyTM6f6NNk', // Use the web API key directly
-        ),
-      );
-
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        if (data['status'] == 'OK') {
-          final result = data['result'];
-          final location = result['geometry']['location'];
-          final lat = location['lat'];
-          final lng = location['lng'];
-          final name = result['name'];
-          final address = result['formatted_address'];
-
-          // Move to the selected location
-          await moveToLocation(LatLng(lat, lng), placeName: name);
-
-          // Notify parent widget
-          widget.onDestinationSelected(name);
-
-          // Clear search
-          setState(() {
-            _searchController.clear();
-            _isSearching = false;
-            _searchResults = [];
-          });
-        }
+  // Expose place details functionality
+  Future<bool> getPlaceDetails(String placeId) async {
+    if (kIsWeb) {
+      if (!_isPlacesApiInitialized) {
+        print('Places API not initialized yet');
+        return false;
       }
-    } catch (e) {
-      print('Error getting place details: $e');
+
+      try {
+        final maps = js.context['google']['maps'];
+        final request = js.JsObject.jsify({
+          'placeId': placeId,
+          'fields': ['name', 'formatted_address', 'geometry', 'place_id'],
+        });
+
+        // Create a completer to handle the async response
+        final completer = Completer<bool>();
+
+        _placesService.callMethod('getDetails', [
+          request,
+          (place, status) {
+            if (status == maps['places']['PlacesServiceStatus']['OK']) {
+              final location = place['geometry']['location'];
+              final lat = location.callMethod('lat');
+              final lng = location.callMethod('lng');
+              final name = place['name'];
+
+              _markers.clear();
+              _markers.add(
+                Marker(
+                  markerId: const MarkerId('selected_location'),
+                  position: LatLng(lat, lng),
+                  infoWindow: InfoWindow(title: name),
+                ),
+              );
+
+              _mapController?.animateCamera(
+                CameraUpdate.newCameraPosition(
+                  CameraPosition(target: LatLng(lat, lng), zoom: 15),
+                ),
+              );
+
+              widget.onDestinationSelected(name);
+              completer.complete(true);
+            } else {
+              print('Error getting place details: $status');
+              completer.complete(false);
+            }
+          },
+        ]);
+
+        return completer.future;
+      } catch (e) {
+        print('Error getting place details: $e');
+        return false;
+      }
+    } else {
+      try {
+        final response = await http.get(
+          Uri.parse(
+            'https://places.googleapis.com/v1/places/$placeId'
+            '?fields=id,displayName,formattedAddress,location'
+            '&key=AIzaSyDtm_kDatDOlKtvEMCA5lcVRFyTM6f6NNk',
+          ),
+        );
+
+        if (response.statusCode == 200) {
+          final place = json.decode(response.body);
+          final location = place['location'];
+          final lat = location['latitude'];
+          final lng = location['longitude'];
+          final name = place['displayName']['text'];
+
+          _markers.clear();
+          _markers.add(
+            Marker(
+              markerId: const MarkerId('selected_location'),
+              position: LatLng(lat, lng),
+              infoWindow: InfoWindow(title: name),
+            ),
+          );
+
+          await _mapController?.animateCamera(
+            CameraUpdate.newCameraPosition(
+              CameraPosition(target: LatLng(lat, lng), zoom: 15),
+            ),
+          );
+
+          widget.onDestinationSelected(name);
+          return true;
+        }
+        return false;
+      } catch (e) {
+        print('Error getting place details: $e');
+        return false;
+      }
     }
   }
 
@@ -145,13 +299,11 @@ class HomeMapWidgetState extends State<HomeMapWidget> {
     setState(() => _isLoading = true);
 
     try {
-      // First check if location service is enabled
       bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
       if (!serviceEnabled) {
         throw Exception('Location services are disabled');
       }
 
-      // Check location permission
       LocationPermission permission = await Geolocator.checkPermission();
       if (permission == LocationPermission.denied) {
         permission = await Geolocator.requestPermission();
@@ -164,15 +316,14 @@ class HomeMapWidgetState extends State<HomeMapWidget> {
         throw Exception('Location permissions are permanently denied');
       }
 
-      // Get position with high accuracy
       Position position = await Geolocator.getCurrentPosition(
         desiredAccuracy: LocationAccuracy.high,
-        timeLimit: const Duration(seconds: 10),
-      ).catchError((e) {
-        // If high accuracy fails, try with reduced accuracy
-        return Geolocator.getCurrentPosition(
+        timeLimit: const Duration(seconds: 5),
+      ).catchError((e) async {
+        // Fallback to reduced accuracy
+        return await Geolocator.getCurrentPosition(
           desiredAccuracy: LocationAccuracy.reduced,
-          timeLimit: const Duration(seconds: 20),
+          timeLimit: const Duration(seconds: 10),
         );
       });
 
@@ -182,94 +333,73 @@ class HomeMapWidgetState extends State<HomeMapWidget> {
           _isLoading = false;
         });
 
-        // Center map on user location with a slight delay to ensure marker is visible
+        // Start location updates
+        _startLocationUpdates();
+
+        // Center map on user location
         await Future.delayed(const Duration(milliseconds: 500));
-        await _centerOnUserLocation();
-
-        // Start listening to location updates
-        LocationSettings locationSettings = const LocationSettings(
-          accuracy: LocationAccuracy.high,
-          distanceFilter: 10,
-        );
-
-        _positionStreamSubscription = Geolocator.getPositionStream(
-          locationSettings: locationSettings,
-        ).listen(
-          (Position position) {
-            if (mounted) {
-              setState(() {
-                _userLocation = LatLng(position.latitude, position.longitude);
-              });
-            }
-          },
-          onError: (e) {
-            print('Error getting location updates: $e');
-          },
-        );
+        _centerOnUserLocation();
       }
     } catch (e) {
-      print('Location error: $e');
-      if (mounted) {
-        setState(() => _isLoading = false);
-        _showErrorDialog(
-          'Unable to get your location. Please make sure:\n\n'
-          '1. Location services are enabled\n'
-          '2. You have granted location permission\n'
-          '3. You have an active internet connection\n\n'
-          'Error: ${e.toString()}',
-        );
-      }
+      print('Error initializing location: $e');
+      setState(() => _isLoading = false);
     }
+  }
+
+  void _startLocationUpdates() {
+    const locationSettings = LocationSettings(
+      accuracy: LocationAccuracy.high,
+      distanceFilter: 10,
+    );
+
+    _positionStreamSubscription = Geolocator.getPositionStream(
+      locationSettings: locationSettings,
+    ).listen(
+      (Position position) {
+        if (mounted) {
+          setState(() {
+            _userLocation = LatLng(position.latitude, position.longitude);
+          });
+        }
+      },
+      onError: (e) {
+        print('Error getting location updates: $e');
+      },
+    );
   }
 
   Future<void> _centerOnUserLocation() async {
-    if (_mapController == null || _userLocation == null) return;
-
-    try {
+    if (_mapController != null && _userLocation != null) {
       await _mapController!.animateCamera(
         CameraUpdate.newCameraPosition(
-          CameraPosition(
-            target: _userLocation!,
-            zoom: 16.0,
-            tilt: 0.0,
-            bearing: 0.0,
-          ),
+          CameraPosition(target: _userLocation!, zoom: 15),
         ),
       );
-    } catch (e) {
-      print('Error centering map: $e');
     }
   }
 
-  // Method to move to a specific location
   Future<void> moveToLocation(LatLng location, {String? placeName}) async {
     if (_mapController == null) return;
 
     try {
-      // Clear existing markers (except user location marker)
-      setState(() {
-        _markers.removeWhere(
-          (marker) => marker.markerId.value != 'user_location',
+      // Clear existing markers
+      _markers.clear();
+
+      // Add marker for the selected location if name is provided
+      if (placeName != null) {
+        _markers.add(
+          Marker(
+            markerId: const MarkerId('selected_location'),
+            position: location,
+            infoWindow: InfoWindow(title: placeName),
+          ),
         );
+      }
 
-        // Add marker for the selected location
-        if (placeName != null) {
-          _markers.add(
-            Marker(
-              markerId: MarkerId('selected_location'),
-              position: location,
-              infoWindow: InfoWindow(title: placeName),
-              icon: BitmapDescriptor.defaultMarkerWithHue(
-                BitmapDescriptor.hueRed,
-              ),
-            ),
-          );
-        }
-      });
-
+      // Move camera to the location
       await _mapController!.animateCamera(
         CameraUpdate.newCameraPosition(
-          CameraPosition(target: location, zoom: 17.0, tilt: 0.0, bearing: 0.0),
+          CameraPosition(target: location, zoom: 15),
         ),
       );
 
@@ -279,6 +409,9 @@ class HomeMapWidgetState extends State<HomeMapWidget> {
         _mapController!.showMarkerInfoWindow(
           const MarkerId('selected_location'),
         );
+
+        // Notify parent widget about the selected destination
+        widget.onDestinationSelected(placeName);
       }
     } catch (e) {
       print('Error moving to location: $e');
@@ -340,175 +473,59 @@ class HomeMapWidgetState extends State<HomeMapWidget> {
     return Stack(
       children: [
         GoogleMap(
-          onMapCreated: (controller) async {
-            _mapController = controller;
-            await controller.setMapStyle('''[
-              {
-                "featureType": "poi",
-                "elementType": "labels",
-                "stylers": [
-                  {
-                    "visibility": "simplified"
-                  }
-                ]
-              }
-            ]''');
-            _initializeLocation();
-          },
           initialCameraPosition: CameraPosition(
-            target:
-                _userLocation ??
-                const LatLng(8.4542, 124.6319), // Default to Cagayan de Oro
-            zoom: 12,
+            target: _userLocation ?? const LatLng(8.4542, 124.6319),
+            zoom: 15,
           ),
+          onMapCreated: (controller) {
+            _mapController = controller;
+            if (_userLocation != null) {
+              _centerOnUserLocation();
+            }
+          },
           myLocationEnabled: true,
           myLocationButtonEnabled: false,
-          compassEnabled: true,
+          zoomControlsEnabled: true,
           mapToolbarEnabled: false,
-          zoomControlsEnabled: false,
-          zoomGesturesEnabled: true,
-          mapType: MapType.normal,
-          trafficEnabled: false,
-          buildingsEnabled: true,
-          indoorViewEnabled: false,
           markers: _markers,
+          compassEnabled: true,
         ),
-        // Search Bar
         Positioned(
-          top: 16,
-          left: 16,
           right: 16,
-          child: Material(
-            elevation: 4,
-            borderRadius: BorderRadius.circular(8),
-            child: Container(
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // Search Input
-                  TextField(
-                    controller: _searchController,
-                    decoration: InputDecoration(
-                      hintText: 'Search for a place',
-                      prefixIcon: const Icon(
-                        Icons.search,
-                        color: Colors.black54,
-                      ),
-                      suffixIcon:
-                          _searchController.text.isNotEmpty
-                              ? IconButton(
-                                icon: const Icon(Icons.clear),
-                                onPressed: () {
-                                  _searchController.clear();
-                                  setState(() {
-                                    _isSearching = false;
-                                    _searchResults = [];
-                                  });
-                                },
-                              )
-                              : null,
-                      border: InputBorder.none,
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 14,
-                      ),
-                    ),
-                    onChanged: (value) {
-                      // Debounce search to avoid too many API calls
-                      _debounceTimer?.cancel();
-                      _debounceTimer = Timer(
-                        const Duration(milliseconds: 500),
-                        () {
-                          _searchPlaces(value);
-                        },
-                      );
-                    },
-                  ),
-                  // Search Results
-                  if (_isSearching && _searchResults.isNotEmpty)
-                    Container(
-                      constraints: BoxConstraints(
-                        maxHeight: MediaQuery.of(context).size.height * 0.4,
-                      ),
-                      decoration: const BoxDecoration(
-                        border: Border(
-                          top: BorderSide(color: Colors.grey, width: 0.5),
-                        ),
-                      ),
-                      child: ListView.builder(
-                        shrinkWrap: true,
-                        padding: EdgeInsets.zero,
-                        itemCount: _searchResults.length,
-                        itemBuilder: (context, index) {
-                          final result = _searchResults[index];
-                          return ListTile(
-                            leading: const Icon(
-                              Icons.location_on,
-                              color: Colors.red,
-                            ),
-                            title: Text(
-                              result['structured_formatting']['main_text'],
-                            ),
-                            subtitle: Text(
-                              result['structured_formatting']['secondary_text'],
-                            ),
-                            onTap: () {
-                              _getPlaceDetails(result['place_id']);
-                            },
-                          );
-                        },
-                      ),
-                    ),
-                ],
-              ),
-            ),
-          ),
-        ),
-        // Custom location button
-        if (!_isLoading)
-          Positioned(
-            right: 10,
-            bottom: 80,
-            child: Material(
-              elevation: 2,
+          top: 16,
+          child: Container(
+            height: 40,
+            width: 40,
+            decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(2),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.2),
+                  blurRadius: 4,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Material(
+              color: Colors.transparent,
               child: InkWell(
                 onTap: _centerOnUserLocation,
-                child: Container(
-                  width: 40,
-                  height: 40,
-                  alignment: Alignment.center,
-                  child: const Icon(
+                child: const Center(
+                  child: Icon(
                     Icons.my_location,
-                    size: 23,
                     color: Colors.black54,
+                    size: 20,
                   ),
                 ),
               ),
             ),
           ),
-        // Loading indicator
+        ),
         if (_isLoading)
           Container(
-            color: Colors.white70,
-            child: Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const CircularProgressIndicator(),
-                  const SizedBox(height: 16),
-                  Text(
-                    'Getting your location...',
-                    style: TextStyle(color: Colors.black87, fontSize: 16),
-                  ),
-                ],
-              ),
-            ),
+            color: Colors.black.withOpacity(0.5),
+            child: const Center(child: CircularProgressIndicator()),
           ),
       ],
     );
