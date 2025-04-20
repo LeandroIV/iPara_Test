@@ -7,20 +7,19 @@ import 'firebase_options.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'screens/home_screen.dart';
 import 'screens/edit_profile_screen.dart';
+import 'screens/role_selection_screen.dart';
+import 'screens/commuter/commuter_home_screen.dart';
+import 'screens/driver/driver_home_screen.dart';
+import 'screens/operator/operator_home_screen.dart';
+import 'services/user_service.dart';
+import 'models/user_role.dart';
 
 final FirebaseFirestore firestore = FirebaseFirestore.instance;
 final FirebaseAuth auth = FirebaseAuth.instance;
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  try {
-    await Firebase.initializeApp(
-      options: DefaultFirebaseOptions.currentPlatform,
-    );
-    print('Firebase initialized successfully');
-  } catch (e) {
-    print('Error initializing Firebase: $e');
-  }
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   runApp(const MyApp());
 }
 
@@ -30,39 +29,24 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'iPara App',
+      title: 'iPara',
+      debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        primaryColor: Colors.black,
+        useMaterial3: true,
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: Colors.amber,
+          brightness: Brightness.dark,
+        ),
         scaffoldBackgroundColor: Colors.black,
-        colorScheme: ColorScheme.dark(
-          primary: Colors.amber,
-          secondary: Colors.amber,
-          surface: Colors.black,
-          onPrimary: Colors.black,
-          onSecondary: Colors.white,
-          onSurface: Colors.white,
-        ),
-        appBarTheme: const AppBarTheme(
+        appBarTheme: AppBarTheme(
           backgroundColor: Colors.black,
+          foregroundColor: Colors.white,
           elevation: 0,
-          iconTheme: IconThemeData(color: Colors.amber),
-          titleTextStyle: TextStyle(
-            color: Colors.white,
-            fontSize: 20,
-            fontWeight: FontWeight.bold,
-          ),
         ),
-        elevatedButtonTheme: ElevatedButtonThemeData(
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.amber,
-            foregroundColor: Colors.black,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-          ),
-        ),
-        textButtonTheme: TextButtonThemeData(
-          style: TextButton.styleFrom(foregroundColor: Colors.amber),
+        bottomNavigationBarTheme: BottomNavigationBarThemeData(
+          backgroundColor: Colors.black,
+          selectedItemColor: Colors.amber,
+          unselectedItemColor: Colors.white54,
         ),
         inputDecorationTheme: InputDecorationTheme(
           filled: true,
@@ -83,14 +67,19 @@ class MyApp extends StatelessWidget {
           ),
         ),
       ),
-      initialRoute: '/',
+      initialRoute: '/splash',
       routes: {
+        '/splash': (context) => const SplashScreen(),
         '/': (context) => const LoginScreen(),
         '/login': (context) => const LoginScreen(),
         '/signup': (context) => const SignUpScreen(),
         '/welcome': (context) => const WelcomeScreen(),
         '/home': (context) => const HomeScreen(),
         '/edit-profile': (context) => const EditProfileScreen(),
+        '/role-selection': (context) => const RoleSelectionScreen(),
+        '/commuter/home': (context) => const CommuterHomeScreen(),
+        '/driver/home': (context) => const DriverHomeScreen(),
+        '/operator/home': (context) => const OperatorHomeScreen(),
       },
     );
   }
@@ -220,7 +209,10 @@ class LoginScreen extends StatelessWidget {
                           },
                           child: const Text(
                             'Forgot Password?',
-                            style: TextStyle(color: Colors.amber),
+                            style: TextStyle(
+                              color: Colors.amber,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                         ),
                       ),
@@ -237,10 +229,41 @@ class LoginScreen extends StatelessWidget {
                                   email: emailController.text.trim(),
                                   password: passwordController.text.trim(),
                                 );
-                                Navigator.pushReplacementNamed(
-                                  context,
-                                  '/welcome',
-                                );
+
+                                // Check if user has a role
+                                final hasRole =
+                                    await UserService.hasSelectedRole();
+                                if (hasRole) {
+                                  // If role exists, get it and navigate to the appropriate screen
+                                  final userRole =
+                                      await UserService.getUserRole();
+                                  String route;
+
+                                  switch (userRole) {
+                                    case UserRole.commuter:
+                                      route = '/commuter/home';
+                                      break;
+                                    case UserRole.driver:
+                                      route = '/driver/home';
+                                      break;
+                                    case UserRole.operator:
+                                      route = '/operator/home';
+                                      break;
+                                    default:
+                                      route = '/role-selection';
+                                  }
+
+                                  Navigator.pushReplacementNamed(
+                                    context,
+                                    route,
+                                  );
+                                } else {
+                                  // If no role exists, navigate to role selection
+                                  Navigator.pushReplacementNamed(
+                                    context,
+                                    '/role-selection',
+                                  );
+                                }
                               } catch (e) {
                                 showDialog(
                                   context: context,
@@ -264,6 +287,7 @@ class LoginScreen extends StatelessWidget {
                           },
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.amber,
+                            foregroundColor: Colors.black,
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(12),
                             ),
@@ -273,6 +297,7 @@ class LoginScreen extends StatelessWidget {
                             style: TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.bold,
+                              color: Colors.black,
                             ),
                           ),
                         ),
@@ -300,6 +325,7 @@ class LoginScreen extends StatelessWidget {
                               style: TextStyle(
                                 color: Colors.amber,
                                 fontWeight: FontWeight.bold,
+                                fontSize: 16,
                               ),
                             ),
                           ),
@@ -333,7 +359,7 @@ class SignUpScreen extends StatelessWidget {
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [Color(0xFF1A1A2E), Color(0xFF16213E)],
+            colors: [Colors.black, Color(0xFF1A1A1A)],
           ),
         ),
         child: SafeArea(
@@ -390,9 +416,7 @@ class SignUpScreen extends StatelessWidget {
                           ),
                           focusedBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(
-                              color: Color(0xFFE94560),
-                            ),
+                            borderSide: const BorderSide(color: Colors.amber),
                           ),
                           errorBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
@@ -432,9 +456,7 @@ class SignUpScreen extends StatelessWidget {
                           ),
                           focusedBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(
-                              color: Color(0xFFE94560),
-                            ),
+                            borderSide: const BorderSide(color: Colors.amber),
                           ),
                           errorBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
@@ -472,9 +494,7 @@ class SignUpScreen extends StatelessWidget {
                           ),
                           focusedBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(
-                              color: Color(0xFFE94560),
-                            ),
+                            borderSide: const BorderSide(color: Colors.amber),
                           ),
                           errorBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
@@ -511,7 +531,7 @@ class SignUpScreen extends StatelessWidget {
                                     builder:
                                         (context) => const Center(
                                           child: CircularProgressIndicator(
-                                            color: Color(0xFFE94560),
+                                            color: Colors.amber,
                                           ),
                                         ),
                                   );
@@ -551,7 +571,7 @@ class SignUpScreen extends StatelessWidget {
                                                 Navigator.pop(context);
                                                 Navigator.pushReplacementNamed(
                                                   context,
-                                                  '/welcome',
+                                                  '/role-selection',
                                                 );
                                               },
                                               child: const Text('OK'),
@@ -649,7 +669,8 @@ class SignUpScreen extends StatelessWidget {
                             }
                           },
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFFE94560),
+                            backgroundColor: Colors.amber,
+                            foregroundColor: Colors.black,
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(12),
                             ),
@@ -659,6 +680,7 @@ class SignUpScreen extends StatelessWidget {
                             style: TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.bold,
+                              color: Colors.black,
                             ),
                           ),
                         ),
@@ -677,7 +699,7 @@ class SignUpScreen extends StatelessWidget {
                             child: const Text(
                               'Log In',
                               style: TextStyle(
-                                color: Color(0xFFE94560),
+                                color: Colors.amber,
                                 fontWeight: FontWeight.bold,
                               ),
                             ),
@@ -743,8 +765,36 @@ class WelcomeScreen extends StatelessWidget {
                   width: double.infinity,
                   height: 56,
                   child: ElevatedButton(
-                    onPressed: () {
-                      Navigator.pushReplacementNamed(context, '/home');
+                    onPressed: () async {
+                      // Check if user has selected a role
+                      final hasRole = await UserService.hasSelectedRole();
+                      if (hasRole) {
+                        // If role exists, get it and navigate to the appropriate screen
+                        final userRole = await UserService.getUserRole();
+                        String route;
+
+                        switch (userRole) {
+                          case UserRole.commuter:
+                            route = '/commuter/home';
+                            break;
+                          case UserRole.driver:
+                            route = '/driver/home';
+                            break;
+                          case UserRole.operator:
+                            route = '/operator/home';
+                            break;
+                          default:
+                            route = '/role-selection';
+                        }
+
+                        Navigator.pushReplacementNamed(context, route);
+                      } else {
+                        // If no role exists, navigate to role selection
+                        Navigator.pushReplacementNamed(
+                          context,
+                          '/role-selection',
+                        );
+                      }
                     },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.amber,
@@ -848,5 +898,98 @@ Future<bool> checkInternetConnection() async {
   } catch (e) {
     print('Error checking connectivity: $e');
     return true; // Return true if there's an error checking connectivity
+  }
+}
+
+class SplashScreen extends StatefulWidget {
+  const SplashScreen({super.key});
+
+  @override
+  State<SplashScreen> createState() => _SplashScreenState();
+}
+
+class _SplashScreenState extends State<SplashScreen> {
+  @override
+  void initState() {
+    super.initState();
+    _checkUserAndNavigate();
+  }
+
+  // Check user auth status and role, then navigate accordingly
+  Future<void> _checkUserAndNavigate() async {
+    // Add a small delay for better UX
+    await Future.delayed(const Duration(seconds: 2));
+
+    // Check if user is authenticated
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      // Not authenticated, go to login
+      if (mounted) {
+        Navigator.pushReplacementNamed(context, '/login');
+      }
+      return;
+    }
+
+    // User is authenticated, check if they have a role
+    final hasRole = await UserService.hasSelectedRole();
+    if (!hasRole) {
+      // No role selected, go to role selection
+      if (mounted) {
+        Navigator.pushReplacementNamed(context, '/role-selection');
+      }
+      return;
+    }
+
+    // User has a role, navigate to the appropriate screen
+    final userRole = await UserService.getUserRole();
+    String route;
+
+    switch (userRole) {
+      case UserRole.commuter:
+        route = '/commuter/home';
+        break;
+      case UserRole.driver:
+        route = '/driver/home';
+        break;
+      case UserRole.operator:
+        route = '/operator/home';
+        break;
+      default:
+        route = '/role-selection';
+    }
+
+    if (mounted) {
+      Navigator.pushReplacementNamed(context, route);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [Colors.black, Color(0xFF1A1A1A)],
+          ),
+        ),
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Image.asset('assets/logo.png', width: 150, height: 150),
+              const SizedBox(height: 30),
+              const CircularProgressIndicator(color: Colors.amber),
+              const SizedBox(height: 20),
+              const Text(
+                'Loading...',
+                style: TextStyle(color: Colors.white70, fontSize: 16),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
