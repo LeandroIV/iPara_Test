@@ -1,4 +1,0 @@
-#Sun Apr 20 12:27:10 CST 2025
-base.0=D\:\\USTP\\3rd year\\CS3B - 2nd Sem\\CS322 - Technopreneurship\\tekno acts\\iPara\\android\\app\\build\\intermediates\\dex\\release\\minifyReleaseWithR8\\classes.dex
-path.0=classes.dex
-renamed.0=classes.dex
