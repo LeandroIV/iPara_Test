@@ -2,9 +2,12 @@ import 'package:flutter/material.dart';
 import '../../models/user_role.dart';
 import '../../services/user_service.dart';
 import '../../widgets/home_map_widget.dart';
+import '../../services/route_service.dart';
+import '../../models/route_model.dart';
 import 'dart:async';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 class CommuterHomeScreen extends StatefulWidget {
   const CommuterHomeScreen({super.key});
@@ -28,6 +31,12 @@ class _CommuterHomeScreenState extends State<CommuterHomeScreen>
   bool _isLoadingPlaces = false;
   Timer? _debounceTimer;
 
+  // Add RouteService
+  final RouteService _routeService = RouteService();
+  List<PUVRoute> _availableRoutes = [];
+  bool _isLoadingRoutes = false;
+  PUVRoute? _selectedRoute;
+
   // Placeholder data for PUV counts
   final Map<String, int> puvCounts = {
     'Bus': 12,
@@ -46,6 +55,67 @@ class _CommuterHomeScreenState extends State<CommuterHomeScreen>
     _drawerAnimation = Tween<double>(begin: -1.0, end: 0.0).animate(
       CurvedAnimation(parent: _drawerController, curve: Curves.easeInOut),
     );
+
+    // Load mock routes on startup
+    _loadRoutes();
+  }
+
+  // Load routes from service
+  Future<void> _loadRoutes() async {
+    setState(() {
+      _isLoadingRoutes = true;
+    });
+
+    try {
+      // For demo purposes, use mock data
+      // In production, this would be: await _routeService.getAllRoutes();
+      _availableRoutes = _routeService.getMockRoutes();
+    } catch (e) {
+      print('Error loading routes: $e');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoadingRoutes = false;
+        });
+      }
+    }
+  }
+
+  // Filter routes based on selected PUV type
+  List<PUVRoute> get filteredRoutes {
+    return _availableRoutes
+        .where(
+          (route) =>
+              route.puvType.toLowerCase() == selectedPUVType.toLowerCase(),
+        )
+        .toList();
+  }
+
+  // Display route on map
+  Future<void> _displayRoute(PUVRoute route) async {
+    setState(() {
+      _selectedRoute = route;
+    });
+
+    // Use the map widget to display the route
+    if (_mapKey.currentState != null) {
+      await _mapKey.currentState!.showPredefinedRoute(
+        route.waypoints,
+        route.colorValue,
+        routeName: route.routeCode,
+      );
+    }
+  }
+
+  // Clear route from map
+  void _clearRoute() {
+    setState(() {
+      _selectedRoute = null;
+    });
+
+    if (_mapKey.currentState != null) {
+      _mapKey.currentState!.clearRoutes();
+    }
   }
 
   @override
@@ -192,8 +262,99 @@ class _CommuterHomeScreenState extends State<CommuterHomeScreen>
     }
   }
 
+  // Helper method to build a route card
+  Widget _buildRouteCard(PUVRoute route, bool isSelected) {
+    return Padding(
+      padding: const EdgeInsets.only(right: 12.0),
+      child: InkWell(
+        onTap: () {
+          _displayRoute(route);
+        },
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          width: 170,
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color:
+                isSelected
+                    ? Color(route.colorValue).withOpacity(0.3)
+                    : Colors.white.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(12),
+            border:
+                isSelected
+                    ? Border.all(color: Color(route.colorValue), width: 2)
+                    : null,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Color(route.colorValue),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      route.routeCode,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    '₱${route.farePrice.toStringAsFixed(0)}',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Expanded(
+                child: Text(
+                  '${route.startPointName} to ${route.endPointName}',
+                  style: const TextStyle(color: Colors.white, fontSize: 12),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Row(
+                children: [
+                  const Icon(
+                    Icons.access_time,
+                    color: Colors.white70,
+                    size: 12,
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    '~${route.estimatedTravelTime} min',
+                    style: const TextStyle(color: Colors.white70, fontSize: 11),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    // Get filtered routes based on selected PUV type
+    final routes = filteredRoutes;
+
     return Scaffold(
       body: Stack(
         children: [
@@ -219,36 +380,45 @@ class _CommuterHomeScreenState extends State<CommuterHomeScreen>
                           icon: Icon(Icons.menu, color: Colors.white),
                           onPressed: _toggleDrawer,
                         ),
-                        Row(
-                          children: [
-                            Container(
-                              padding: EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 6,
-                              ),
-                              decoration: BoxDecoration(
-                                color: Colors.amber.withOpacity(0.2),
-                                borderRadius: BorderRadius.circular(16),
-                              ),
-                              child: Row(
-                                children: [
-                                  Icon(
-                                    UserRole.commuter.icon,
-                                    color: Colors.amber,
-                                    size: 16,
+                        Flexible(
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Flexible(
+                                child: Container(
+                                  padding: EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 6,
                                   ),
-                                  SizedBox(width: 4),
-                                  Text(
-                                    'Commuter Mode',
-                                    style: TextStyle(
-                                      color: Colors.amber,
-                                      fontWeight: FontWeight.bold,
-                                    ),
+                                  decoration: BoxDecoration(
+                                    color: Colors.amber.withOpacity(0.2),
+                                    borderRadius: BorderRadius.circular(16),
                                   ),
-                                ],
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(
+                                        UserRole.commuter.icon,
+                                        color: Colors.amber,
+                                        size: 16,
+                                      ),
+                                      SizedBox(width: 4),
+                                      Flexible(
+                                        child: Text(
+                                          'Commuter Mode',
+                                          style: TextStyle(
+                                            color: Colors.amber,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
                         IconButton(
                           icon: Icon(Icons.person, color: Colors.white),
@@ -453,6 +623,7 @@ class _CommuterHomeScreenState extends State<CommuterHomeScreen>
                         SingleChildScrollView(
                           scrollDirection: Axis.horizontal,
                           child: Row(
+                            mainAxisSize: MainAxisSize.min,
                             children:
                                 puvCounts.entries.map((entry) {
                                   bool isSelected =
@@ -463,6 +634,12 @@ class _CommuterHomeScreenState extends State<CommuterHomeScreen>
                                       onPressed: () {
                                         setState(() {
                                           selectedPUVType = entry.key;
+
+                                          // Clear any selected route when changing PUV type
+                                          _selectedRoute = null;
+                                          if (_mapKey.currentState != null) {
+                                            _mapKey.currentState!.clearRoutes();
+                                          }
                                         });
                                       },
                                       style: ElevatedButton.styleFrom(
@@ -481,6 +658,7 @@ class _CommuterHomeScreenState extends State<CommuterHomeScreen>
                                         ),
                                       ),
                                       child: Column(
+                                        mainAxisSize: MainAxisSize.min,
                                         children: [
                                           Text(
                                             entry.key,
@@ -515,15 +693,81 @@ class _CommuterHomeScreenState extends State<CommuterHomeScreen>
                   ),
                   const SizedBox(height: 16),
 
+                  // Available Routes Section (new)
+                  if (routes.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              const Text(
+                                'Available Routes',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              if (_selectedRoute != null)
+                                TextButton.icon(
+                                  icon: const Icon(
+                                    Icons.clear,
+                                    color: Colors.white70,
+                                    size: 16,
+                                  ),
+                                  label: const Text(
+                                    'Clear Route',
+                                    style: TextStyle(color: Colors.white70),
+                                  ),
+                                  onPressed: _clearRoute,
+                                ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          SizedBox(
+                            height: 120,
+                            child:
+                                _isLoadingRoutes
+                                    ? const Center(
+                                      child: CircularProgressIndicator(
+                                        color: Colors.amber,
+                                      ),
+                                    )
+                                    : ListView.builder(
+                                      scrollDirection: Axis.horizontal,
+                                      itemCount: routes.length,
+                                      itemBuilder: (context, index) {
+                                        final route = routes[index];
+                                        final isSelected =
+                                            _selectedRoute?.id == route.id;
+                                        return _buildRouteCard(
+                                          route,
+                                          isSelected,
+                                        );
+                                      },
+                                    ),
+                          ),
+                        ],
+                      ),
+                    ),
+
                   // Map Widget
                   Expanded(
-                    child: HomeMapWidget(
-                      key: _mapKey,
-                      onDestinationSelected: (destination) {
-                        setState(() {
-                          _destinationController.text = destination;
-                        });
-                      },
+                    child: ClipRRect(
+                      borderRadius: const BorderRadius.vertical(
+                        top: Radius.circular(20),
+                      ),
+                      child: HomeMapWidget(
+                        key: _mapKey,
+                        onDestinationSelected: (destination) {
+                          setState(() {
+                            _destinationController.text = destination;
+                          });
+                        },
+                      ),
                     ),
                   ),
                 ],

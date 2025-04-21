@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:ns1="http://schemas.android.com/tools">
+    <string name="com.crashlytics.android.build_id" ns1:ignore="UnusedResources,TypographyDashes" translatable="false">83c4c930680b4e21b468fa59487440da</string>
+    <string name="gcm_defaultSenderId" translatable="false">911307464919</string>
+    <string name="google_api_key" translatable="false">AIzaSyBorFK55oUNa4KX6ib1kFbncVspFSmBpZE</string>
+    <string name="google_app_id" translatable="false">1:911307464919:android:9d88a0f78542bb3155d092</string>
+    <string name="google_crash_reporting_api_key" translatable="false">AIzaSyBorFK55oUNa4KX6ib1kFbncVspFSmBpZE</string>
+    <string name="google_storage_bucket" translatable="false">ipara-fd373.firebasestorage.app</string>
+    <string name="project_id" translatable="false">ipara-fd373</string>
+    <style name="LaunchTheme" parent="@android:style/Theme.Light.NoTitleBar">
+        
+        <item name="android:windowBackground">@drawable/launch_background</item>
+    </style>
+    <style name="NormalTheme" parent="@android:style/Theme.Light.NoTitleBar">
+        <item name="android:windowBackground">?android:colorBackground</item>
+    </style>
+</resources>
