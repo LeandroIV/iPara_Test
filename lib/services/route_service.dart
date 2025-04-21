@@ -152,10 +152,20 @@ class RouteService {
         puvType: 'Jeepney',
         routeCode: 'R2',
         waypoints: [
-          const LatLng(8.4950, 124.6419), // Carmen
-          const LatLng(8.4880, 124.6468), // Point 1
-          const LatLng(8.4837, 124.6492), // Point 2
-          const LatLng(8.4792, 124.6465), // Divisoria
+          const LatLng(8.486261, 124.649210), // gaisano
+          const LatLng(8.488737, 124.654004), //osmena
+          const LatLng(8.488257, 124.657648), // agora market
+          const LatLng(8.484704, 124.656401), // ustp
+          const LatLng(8.484704, 124.656401), // ustp
+          const LatLng(8.478534, 124.654355), // pearl mont
+          const LatLng(8.478744, 124.652822), // pearl mont unahan
+          const LatLng(8.479595, 124.649240), // cogon
+          const LatLng(8.477819, 124.642316), // capistrano
+          const LatLng(8.476322, 124.640128), // yselina bridge
+          const LatLng(8.481712, 124.637232), // coc terminal
+          const LatLng(8.484994, 124.637248), // mango st
+          const LatLng(8.486158, 124.638827), // liceo
+          const LatLng(8.486261, 124.649210), // gaisano
         ],
         startPointName: 'Carmen Terminal',
         endPointName: 'Divisoria',

@@ -14,7 +14,7 @@ migrate_working_dir/
 
 # IntelliJ related
 *.iml
-*.ipr
+*.ipr   
 *.iws
 .idea/
 
@@ -44,6 +44,7 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+/android/app/build/
 
 # Dependencies
 /node_modules
