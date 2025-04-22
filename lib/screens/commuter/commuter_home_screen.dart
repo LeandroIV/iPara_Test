@@ -966,7 +966,7 @@ class _CommuterHomeScreenState extends State<CommuterHomeScreen>
     required VoidCallback onTap,
   }) {
     return ListTile(
-      leading: Icon(icon, color: Colors.amber),
+      leading: Icon(icon, color: Colors.white),
       title: Text(
         title,
         style: const TextStyle(color: Colors.white, fontSize: 16),

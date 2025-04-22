@@ -2,9 +2,12 @@ import 'package:flutter/material.dart';
 import '../../models/user_role.dart';
 import '../../services/user_service.dart';
 import '../../widgets/home_map_widget.dart';
+import '../../services/route_service.dart';
+import '../../models/route_model.dart';
 import 'dart:async';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 class DriverHomeScreen extends StatefulWidget {
   const DriverHomeScreen({super.key});
@@ -20,7 +23,13 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
   late Animation<double> _drawerAnimation;
   final GlobalKey<HomeMapWidgetState> _mapKey = GlobalKey<HomeMapWidgetState>();
   bool _isOnline = false;
-  String _selectedRoute = 'R2 - Carmen to Divisoria';
+
+  // Add route service
+  final RouteService _routeService = RouteService();
+  List<PUVRoute> _availableRoutes = [];
+  bool _isLoadingRoutes = false;
+  PUVRoute? _selectedRoute;
+  String selectedPUVType = 'Jeepney';
 
   // Add text controller for destination search
   final TextEditingController _destinationController = TextEditingController();
@@ -29,14 +38,13 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
   bool _isLoadingPlaces = false;
   Timer? _debounceTimer;
 
-  // Placeholder data for PUV routes
-  final List<String> _routes = [
-    'R2 - Carmen to Divisoria',
-    'R3 - Bulua to Divisoria',
-    'R4 - Bugo to Lapasan',
-    'R7 - Balulang to Divisoria',
-    'R10 - Canitoan to Cogon',
-  ];
+  // Placeholder data for PUV counts
+  final Map<String, int> puvCounts = {
+    'Bus': 8,
+    'Jeepney': 32,
+    'Multicab': 15,
+    'Motorela': 10,
+  };
 
   @override
   void initState() {
@@ -48,6 +56,67 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
     _drawerAnimation = Tween<double>(begin: -1.0, end: 0.0).animate(
       CurvedAnimation(parent: _drawerController, curve: Curves.easeInOut),
     );
+
+    // Load mock routes on startup
+    _loadRoutes();
+  }
+
+  // Load routes from service
+  Future<void> _loadRoutes() async {
+    setState(() {
+      _isLoadingRoutes = true;
+    });
+
+    try {
+      // For demo purposes, use mock data
+      // In production, this would be: await _routeService.getAllRoutes();
+      _availableRoutes = _routeService.getMockRoutes();
+    } catch (e) {
+      print('Error loading routes: $e');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoadingRoutes = false;
+        });
+      }
+    }
+  }
+
+  // Filter routes based on selected PUV type
+  List<PUVRoute> get filteredRoutes {
+    return _availableRoutes
+        .where(
+          (route) =>
+              route.puvType.toLowerCase() == selectedPUVType.toLowerCase(),
+        )
+        .toList();
+  }
+
+  // Display route on map
+  Future<void> _displayRoute(PUVRoute route) async {
+    setState(() {
+      _selectedRoute = route;
+    });
+
+    // Use the map widget to display the route
+    if (_mapKey.currentState != null) {
+      await _mapKey.currentState!.showPredefinedRoute(
+        route.waypoints,
+        route.colorValue,
+        routeName: route.routeCode,
+      );
+    }
+  }
+
+  // Clear route from map
+  void _clearRoute() {
+    setState(() {
+      _selectedRoute = null;
+    });
+
+    if (_mapKey.currentState != null) {
+      _mapKey.currentState!.clearRoutes();
+    }
   }
 
   @override
@@ -111,6 +180,94 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
         _drawerController.reverse();
       }
     });
+  }
+
+  // Helper method to build a route card
+  Widget _buildRouteCard(PUVRoute route, bool isSelected) {
+    return Padding(
+      padding: const EdgeInsets.only(right: 12.0),
+      child: InkWell(
+        onTap: () {
+          _displayRoute(route);
+        },
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          width: 170,
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color:
+                isSelected
+                    ? Color(route.colorValue).withOpacity(0.3)
+                    : Colors.white.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(12),
+            border:
+                isSelected
+                    ? Border.all(color: Color(route.colorValue), width: 2)
+                    : null,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Color(route.colorValue),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      route.routeCode,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    '₱${route.farePrice.toStringAsFixed(0)}',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Expanded(
+                child: Text(
+                  '${route.startPointName} to ${route.endPointName}',
+                  style: const TextStyle(color: Colors.white, fontSize: 12),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Row(
+                children: [
+                  const Icon(
+                    Icons.access_time,
+                    color: Colors.white70,
+                    size: 12,
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    '~${route.estimatedTravelTime} min',
+                    style: const TextStyle(color: Colors.white70, fontSize: 11),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   Future<void> _switchUserRole() async {
@@ -196,6 +353,9 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
 
   @override
   Widget build(BuildContext context) {
+    // Get filtered routes based on selected PUV type
+    final routes = filteredRoutes;
+
     return Scaffold(
       body: Stack(
         children: [
@@ -262,14 +422,11 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
                     ),
                   ),
 
-                  // Online/Offline Toggle
+                  // Online Status Switch
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16.0),
                     child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 16,
-                      ),
+                      padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
                         color:
                             _isOnline
@@ -280,37 +437,20 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
                       child: Row(
                         children: [
                           Icon(
-                            _isOnline ? Icons.flash_on : Icons.flash_off,
+                            _isOnline
+                                ? Icons.online_prediction
+                                : Icons.offline_bolt,
                             color: _isOnline ? Colors.green : Colors.red,
                           ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  _isOnline
-                                      ? 'You are Online'
-                                      : 'You are Offline',
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 16,
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  _isOnline
-                                      ? 'You are accepting ride requests'
-                                      : 'Go online to start receiving ride requests',
-                                  style: const TextStyle(
-                                    color: Colors.white70,
-                                    fontSize: 12,
-                                  ),
-                                ),
-                              ],
+                          const SizedBox(width: 8),
+                          Text(
+                            _isOnline ? 'You are Online' : 'You are Offline',
+                            style: TextStyle(
+                              color: _isOnline ? Colors.green : Colors.red,
+                              fontWeight: FontWeight.bold,
                             ),
                           ),
+                          const Spacer(),
                           Switch(
                             value: _isOnline,
                             onChanged: (value) {
@@ -319,195 +459,177 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
                               });
                             },
                             activeColor: Colors.green,
-                            inactiveThumbColor: Colors.grey,
+                            activeTrackColor: Colors.green.withOpacity(0.5),
                           ),
                         ],
                       ),
                     ),
                   ),
+                  const SizedBox(height: 16),
 
-                  // Search destination for drivers
+                  // PUV Type Selection
                   Padding(
-                    padding: const EdgeInsets.all(16.0),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 8,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
+                    padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Select Your PUV Type',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children:
+                                puvCounts.entries.map((entry) {
+                                  bool isSelected =
+                                      selectedPUVType == entry.key;
+                                  return Padding(
+                                    padding: const EdgeInsets.only(right: 12.0),
+                                    child: ElevatedButton(
+                                      onPressed: () {
+                                        setState(() {
+                                          selectedPUVType = entry.key;
+
+                                          // Clear any selected route when changing PUV type
+                                          _selectedRoute = null;
+                                          if (_mapKey.currentState != null) {
+                                            _mapKey.currentState!.clearRoutes();
+                                          }
+                                        });
+                                      },
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor:
+                                            isSelected
+                                                ? Colors.blue
+                                                : Colors.white.withOpacity(0.1),
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 24,
+                                          vertical: 16,
+                                        ),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            12,
+                                          ),
+                                        ),
+                                      ),
+                                      child: Column(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Text(
+                                            entry.key,
+                                            style: TextStyle(
+                                              color:
+                                                  isSelected
+                                                      ? Colors.white
+                                                      : Colors.white70,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 4),
+                                          Text(
+                                            '${entry.value} available',
+                                            style: TextStyle(
+                                              color:
+                                                  isSelected
+                                                      ? Colors.white70
+                                                      : Colors.white54,
+                                              fontSize: 12,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  );
+                                }).toList(),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Available Routes Section
+                  if (routes.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16.0),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              const Icon(
-                                Icons.location_searching,
-                                color: Colors.blue,
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    const Text(
-                                      'Select Navigation Destination',
-                                      style: TextStyle(
-                                        color: Colors.white70,
-                                        fontSize: 12,
-                                      ),
-                                    ),
-                                    TextField(
-                                      controller: _destinationController,
-                                      style: const TextStyle(
-                                        color: Colors.white,
-                                      ),
-                                      decoration: const InputDecoration(
-                                        hintText: 'Where to navigate?',
-                                        hintStyle: TextStyle(
-                                          color: Colors.white54,
-                                        ),
-                                        border: InputBorder.none,
-                                        contentPadding: EdgeInsets.zero,
-                                      ),
-                                      onChanged: (value) {
-                                        if (_debounceTimer?.isActive ?? false) {
-                                          _debounceTimer!.cancel();
-                                        }
-                                        _debounceTimer = Timer(
-                                          const Duration(milliseconds: 500),
-                                          () => _searchPlaces(value),
-                                        );
-                                      },
-                                      onTap: () {
-                                        setState(() {
-                                          _isSearching = true;
-                                        });
-                                      },
-                                    ),
-                                  ],
+                              const Text(
+                                'Select Your Route',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
                                 ),
                               ),
-                              if (_isSearching)
-                                IconButton(
+                              if (_selectedRoute != null)
+                                TextButton.icon(
                                   icon: const Icon(
-                                    Icons.close,
+                                    Icons.clear,
                                     color: Colors.white70,
+                                    size: 16,
                                   ),
-                                  onPressed: () {
-                                    setState(() {
-                                      _isSearching = false;
-                                      _destinationController.clear();
-                                      _googlePlacesResults = [];
-                                    });
-                                  },
-                                ),
-                              if (!_isSearching)
-                                IconButton(
-                                  icon: const Icon(
-                                    Icons.search,
-                                    color: Colors.blue,
+                                  label: const Text(
+                                    'Clear Route',
+                                    style: TextStyle(color: Colors.white70),
                                   ),
-                                  onPressed: () {
-                                    setState(() {
-                                      _isSearching = true;
-                                    });
-                                  },
+                                  onPressed: _clearRoute,
                                 ),
                             ],
                           ),
-                          if (_isSearching && _isLoadingPlaces)
-                            Container(
-                              margin: const EdgeInsets.only(top: 8),
-                              child: const Center(
-                                child: CircularProgressIndicator(
-                                  color: Colors.blue,
-                                  strokeWidth: 2,
-                                ),
-                              ),
-                            ),
-                          if (_isSearching && _googlePlacesResults.isNotEmpty)
-                            Container(
-                              margin: const EdgeInsets.only(top: 8),
-                              padding: const EdgeInsets.all(16.0),
-                              decoration: BoxDecoration(
-                                color: Colors.white.withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const Text(
-                                    'Suggested Locations',
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  ConstrainedBox(
-                                    constraints: BoxConstraints(
-                                      maxHeight:
-                                          MediaQuery.of(context).size.height *
-                                          0.3,
-                                    ),
-                                    child: ListView.builder(
-                                      shrinkWrap: true,
-                                      itemCount: _googlePlacesResults.length,
+                          const SizedBox(height: 8),
+                          SizedBox(
+                            height: 120,
+                            child:
+                                _isLoadingRoutes
+                                    ? const Center(
+                                      child: CircularProgressIndicator(
+                                        color: Colors.blue,
+                                      ),
+                                    )
+                                    : ListView.builder(
+                                      scrollDirection: Axis.horizontal,
+                                      itemCount: routes.length,
                                       itemBuilder: (context, index) {
-                                        final place =
-                                            _googlePlacesResults[index];
-                                        return ListTile(
-                                          leading: const Icon(
-                                            Icons.location_on,
-                                            color: Colors.blue,
-                                          ),
-                                          title: Text(
-                                            place['structured_formatting']?['main_text'] ??
-                                                place['description'] ??
-                                                '',
-                                            style: const TextStyle(
-                                              color: Colors.white,
-                                              fontWeight: FontWeight.bold,
-                                            ),
-                                          ),
-                                          subtitle: Text(
-                                            place['structured_formatting']?['secondary_text'] ??
-                                                '',
-                                            style: const TextStyle(
-                                              color: Colors.white70,
-                                            ),
-                                            maxLines: 2,
-                                            overflow: TextOverflow.ellipsis,
-                                          ),
-                                          onTap: () {
-                                            _selectPlace(place);
-                                          },
+                                        final route = routes[index];
+                                        final isSelected =
+                                            _selectedRoute?.id == route.id;
+                                        return _buildRouteCard(
+                                          route,
+                                          isSelected,
                                         );
                                       },
                                     ),
-                                  ),
-                                ],
-                              ),
-                            ),
+                          ),
                         ],
                       ),
                     ),
-                  ),
 
-                  // Map View - Add this for driver navigation
+                  // Map Widget
                   Expanded(
-                    child: HomeMapWidget(
-                      key: _mapKey,
-                      onDestinationSelected: (destination) {
-                        setState(() {
-                          _destinationController.text = destination;
-                          _isSearching = false;
-                        });
-                      },
+                    child: ClipRRect(
+                      borderRadius: const BorderRadius.vertical(
+                        top: Radius.circular(20),
+                      ),
+                      child: HomeMapWidget(
+                        key: _mapKey,
+                        onDestinationSelected: (destination) {
+                          setState(() {
+                            _destinationController.text = destination;
+                          });
+                        },
+                      ),
                     ),
                   ),
                 ],
@@ -664,6 +786,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
                                       // TODO: Navigate to help & support
                                     },
                                   ),
+                                  // Add Switch Role option to drawer menu
                                   _buildDrawerItem(
                                     icon: Icons.swap_horiz,
                                     title: 'Switch Role',
@@ -685,7 +808,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
                                 label: const Text('Logout'),
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: Colors.blue,
-                                  foregroundColor: Colors.white,
+                                  foregroundColor: Colors.black,
                                   minimumSize: const Size(double.infinity, 50),
                                   shape: RoundedRectangleBorder(
                                     borderRadius: BorderRadius.circular(12),
@@ -713,7 +836,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
     required VoidCallback onTap,
   }) {
     return ListTile(
-      leading: Icon(icon, color: Colors.blue),
+      leading: Icon(icon, color: Color(0xFF2196F3), size: 24.0),
       title: Text(
         title,
         style: const TextStyle(color: Colors.white, fontSize: 16),

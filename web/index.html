@@ -39,13 +39,19 @@
   <script>
     function initMap() {
       // Places API is now loaded
-      console.log('Places API loaded');
+      console.log('Places API loaded successfully with key: ' + window.googleMapsApiKey.substring(0, 8) + "...");
       window.initMapComplete = true;
+    }
+
+    function handleMapError() {
+      console.error("Google Maps failed to load properly. Check your API key and network connection.");
     }
   </script>
   <script>
     // Use the API key from api_config.js
-    document.write('<script src="https://maps.googleapis.com/maps/api/js?key=' + window.googleMapsApiKey + '&libraries=places&callback=initMap" async defer><\/script>');
+    document.write('<script src="https://maps.googleapis.com/maps/api/js?key=' + 
+      window.googleMapsApiKey + 
+      '&libraries=places&callback=initMap&v=weekly" async defer onerror="handleMapError()"><\/script>');
   </script>
 
   <script>

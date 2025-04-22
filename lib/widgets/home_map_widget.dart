@@ -11,9 +11,10 @@ import 'dart:html' as html;
 import 'dart:ui' as ui;
 import 'package:flutter_polyline_points/flutter_polyline_points.dart';
 import 'package:location/location.dart' as location_pkg;
+import '../config/api_keys.dart';
 
 // Consistent API key declaration at the top level
-const String googleApiKey = "AIzaSyBqe0U8R9zGkQl3nYvwWRhXwXiInw6e4Ko";
+const String googleApiKey = "AIzaSyDtm_kDatDOlKtvEMCA5lcVRFyTM6f6NNk";
 
 class HomeMapWidget extends StatefulWidget {
   final Function(String) onDestinationSelected;
@@ -794,24 +795,28 @@ class HomeMapWidgetState extends State<HomeMapWidget> {
   Widget build(BuildContext context) {
     return Stack(
       children: [
-        GoogleMap(
-          initialCameraPosition: CameraPosition(
-            target: _userLocation ?? const LatLng(8.4542, 124.6319),
-            zoom: 15,
+        SizedBox(
+          width: MediaQuery.of(context).size.width,
+          height: MediaQuery.of(context).size.height,
+          child: GoogleMap(
+            initialCameraPosition: CameraPosition(
+              target: _userLocation ?? const LatLng(8.4542, 124.6319),
+              zoom: 15,
+            ),
+            onMapCreated: (controller) {
+              _mapController = controller;
+              if (_userLocation != null) {
+                _centerOnUserLocation();
+              }
+            },
+            myLocationEnabled: true,
+            myLocationButtonEnabled: false,
+            zoomControlsEnabled: true,
+            mapToolbarEnabled: false,
+            markers: _markers,
+            polylines: Set<Polyline>.of(_polylines.values),
+            compassEnabled: true,
           ),
-          onMapCreated: (controller) {
-            _mapController = controller;
-            if (_userLocation != null) {
-              _centerOnUserLocation();
-            }
-          },
-          myLocationEnabled: true,
-          myLocationButtonEnabled: false,
-          zoomControlsEnabled: true,
-          mapToolbarEnabled: false,
-          markers: _markers,
-          polylines: Set<Polyline>.of(_polylines.values),
-          compassEnabled: true,
         ),
         Positioned(
           right: 16,
