@@ -546,20 +546,34 @@ class HomeMapWidgetState extends State<HomeMapWidget> {
               final lng = location.callMethod('lng');
               final name = place['name'];
 
-              _markers.clear();
+              // Only remove the destination marker, not all markers
+              _markers.removeWhere(
+                (marker) => marker.markerId.value == 'selected_location',
+              );
+
+              // Add the destination marker
+              final destinationLocation = LatLng(lat, lng);
               _markers.add(
                 Marker(
                   markerId: const MarkerId('selected_location'),
-                  position: LatLng(lat, lng),
+                  position: destinationLocation,
                   infoWindow: InfoWindow(title: name),
+                  icon: BitmapDescriptor.defaultMarkerWithHue(
+                    BitmapDescriptor.hueGreen,
+                  ),
                 ),
               );
 
               _mapController?.animateCamera(
                 CameraUpdate.newCameraPosition(
-                  CameraPosition(target: LatLng(lat, lng), zoom: 15),
+                  CameraPosition(target: destinationLocation, zoom: 15),
                 ),
               );
+
+              // Show route from user location to destination if user location is available
+              if (_userLocation != null) {
+                showRoute(_userLocation!, destinationLocation);
+              }
 
               widget.onDestinationSelected(name);
               completer.complete(true);
@@ -592,20 +606,34 @@ class HomeMapWidgetState extends State<HomeMapWidget> {
           final lng = location['longitude'];
           final name = place['displayName']['text'];
 
-          _markers.clear();
+          // Only remove the destination marker, not all markers
+          _markers.removeWhere(
+            (marker) => marker.markerId.value == 'selected_location',
+          );
+
+          // Add the destination marker
+          final destinationLocation = LatLng(lat, lng);
           _markers.add(
             Marker(
               markerId: const MarkerId('selected_location'),
-              position: LatLng(lat, lng),
+              position: destinationLocation,
               infoWindow: InfoWindow(title: name),
+              icon: BitmapDescriptor.defaultMarkerWithHue(
+                BitmapDescriptor.hueGreen,
+              ),
             ),
           );
 
           await _mapController?.animateCamera(
             CameraUpdate.newCameraPosition(
-              CameraPosition(target: LatLng(lat, lng), zoom: 15),
+              CameraPosition(target: destinationLocation, zoom: 15),
             ),
           );
+
+          // Show route from user location to destination if user location is available
+          if (_userLocation != null) {
+            await showRoute(_userLocation!, destinationLocation);
+          }
 
           widget.onDestinationSelected(name);
           return true;
@@ -656,6 +684,9 @@ class HomeMapWidgetState extends State<HomeMapWidget> {
           _isLoading = false;
         });
 
+        // Add the user location marker
+        _updateUserLocationMarker();
+
         // Start location updates
         _startLocationUpdates();
 
@@ -682,12 +713,33 @@ class HomeMapWidgetState extends State<HomeMapWidget> {
         if (mounted) {
           setState(() {
             _userLocation = LatLng(position.latitude, position.longitude);
+            // Update the user location marker
+            _updateUserLocationMarker();
           });
         }
       },
       onError: (e) {
         print('Error getting location updates: $e');
       },
+    );
+  }
+
+  // Add a method to update the user's location marker
+  void _updateUserLocationMarker() {
+    if (_userLocation == null) return;
+
+    // Remove old user location marker if it exists
+    _markers.removeWhere((marker) => marker.markerId.value == 'user_location');
+
+    // Add new marker at current location
+    _markers.add(
+      Marker(
+        markerId: const MarkerId('user_location'),
+        position: _userLocation!,
+        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
+        infoWindow: const InfoWindow(title: 'You are here'),
+        zIndex: 2, // Higher z-index to appear above other markers
+      ),
     );
   }
 
@@ -705,8 +757,10 @@ class HomeMapWidgetState extends State<HomeMapWidget> {
     if (_mapController == null) return;
 
     try {
-      // Clear existing markers
-      _markers.clear();
+      // Remove only the selected location marker, not all markers
+      _markers.removeWhere(
+        (marker) => marker.markerId.value == 'selected_location',
+      );
 
       // Add marker for the selected location if name is provided
       if (placeName != null) {
@@ -715,6 +769,9 @@ class HomeMapWidgetState extends State<HomeMapWidget> {
             markerId: const MarkerId('selected_location'),
             position: location,
             infoWindow: InfoWindow(title: placeName),
+            icon: BitmapDescriptor.defaultMarkerWithHue(
+              BitmapDescriptor.hueGreen,
+            ),
           ),
         );
       }
@@ -725,6 +782,11 @@ class HomeMapWidgetState extends State<HomeMapWidget> {
           CameraPosition(target: location, zoom: 15),
         ),
       );
+
+      // Show directions if user location is available
+      if (_userLocation != null && placeName != null) {
+        await showRoute(_userLocation!, location);
+      }
 
       // Show the info window for the marker
       if (placeName != null) {
