@@ -4,6 +4,7 @@ import '../../services/user_service.dart';
 import '../../widgets/home_map_widget.dart';
 import '../../services/route_service.dart';
 import '../../models/route_model.dart';
+import '../edit_profile_screen.dart';
 import 'dart:async';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -22,7 +23,10 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
   late AnimationController _drawerController;
   late Animation<double> _drawerAnimation;
   final GlobalKey<HomeMapWidgetState> _mapKey = GlobalKey<HomeMapWidgetState>();
-  bool _isOnline = false;
+  bool _isOnline = true;
+
+  // Add location visibility toggle
+  bool _isLocationVisibleToCommuters = true;
 
   // Add route service
   final RouteService _routeService = RouteService();
@@ -185,25 +189,25 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
   // Helper method to build a route card
   Widget _buildRouteCard(PUVRoute route, bool isSelected) {
     return Padding(
-      padding: const EdgeInsets.only(right: 12.0),
+      padding: const EdgeInsets.only(right: 10.0),
       child: InkWell(
         onTap: () {
           _displayRoute(route);
         },
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(10),
         child: Container(
-          width: 170,
-          padding: const EdgeInsets.all(12),
+          width: 150,
+          padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(
             color:
                 isSelected
                     ? Color(route.colorValue).withOpacity(0.3)
                     : Colors.white.withOpacity(0.1),
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(10),
             border:
                 isSelected
                     ? Border.all(color: Color(route.colorValue), width: 2)
-                    : null,
+                    : Border.all(color: Colors.white10, width: 1),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -235,31 +239,32 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
                     style: const TextStyle(
                       color: Colors.white,
                       fontWeight: FontWeight.bold,
+                      fontSize: 13,
                     ),
                   ),
                 ],
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 6),
               Expanded(
                 child: Text(
                   '${route.startPointName} to ${route.endPointName}',
-                  style: const TextStyle(color: Colors.white, fontSize: 12),
+                  style: const TextStyle(color: Colors.white, fontSize: 11),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
-              const SizedBox(height: 4),
+              const SizedBox(height: 2),
               Row(
                 children: [
                   const Icon(
                     Icons.access_time,
                     color: Colors.white70,
-                    size: 12,
+                    size: 10,
                   ),
-                  const SizedBox(width: 4),
+                  const SizedBox(width: 2),
                   Text(
                     '~${route.estimatedTravelTime} min',
-                    style: const TextStyle(color: Colors.white70, fontSize: 11),
+                    style: const TextStyle(color: Colors.white70, fontSize: 10),
                   ),
                 ],
               ),
@@ -351,6 +356,36 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
     }
   }
 
+  // Toggle location visibility to commuters
+  void _toggleLocationVisibility() {
+    setState(() {
+      _isLocationVisibleToCommuters = !_isLocationVisibleToCommuters;
+    });
+
+    // Explicitly refresh the map to show/hide the user location pin immediately
+    if (_mapKey.currentState != null) {
+      _mapKey.currentState!.updateUserLocationVisibility(
+        _isLocationVisibleToCommuters,
+      );
+    }
+
+    // Show confirmation message
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          _isLocationVisibleToCommuters
+              ? 'Your location is now visible to commuters'
+              : 'Your location is now hidden from commuters',
+        ),
+        backgroundColor:
+            _isLocationVisibleToCommuters ? Colors.blue : Colors.red,
+        duration: Duration(seconds: 2),
+      ),
+    );
+
+    // TODO: Implement actual location sharing logic with backend
+  }
+
   @override
   Widget build(BuildContext context) {
     // Get filtered routes based on selected PUV type
@@ -415,7 +450,12 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
                         IconButton(
                           icon: Icon(Icons.person, color: Colors.white),
                           onPressed: () {
-                            // Navigate to profile
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const EditProfileScreen(),
+                              ),
+                            );
                           },
                         ),
                       ],
@@ -426,13 +466,16 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16.0),
                     child: Container(
-                      padding: const EdgeInsets.all(16),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 12,
+                      ),
                       decoration: BoxDecoration(
                         color:
                             _isOnline
                                 ? Colors.green.withOpacity(0.2)
                                 : Colors.red.withOpacity(0.2),
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: BorderRadius.circular(10),
                       ),
                       child: Row(
                         children: [
@@ -456,7 +499,33 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
                             onChanged: (value) {
                               setState(() {
                                 _isOnline = value;
+                                // Set location visibility based on online status
+                                _isLocationVisibleToCommuters = value;
                               });
+
+                              // Update map visibility
+                              if (_mapKey.currentState != null) {
+                                _mapKey.currentState!
+                                    .updateUserLocationVisibility(
+                                      _isLocationVisibleToCommuters,
+                                    );
+                              }
+
+                              // Show confirmation about location visibility
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    _isLocationVisibleToCommuters
+                                        ? 'You are now online and visible to commuters'
+                                        : 'You are now offline and hidden from commuters',
+                                  ),
+                                  backgroundColor:
+                                      _isLocationVisibleToCommuters
+                                          ? Colors.green
+                                          : Colors.red,
+                                  duration: Duration(seconds: 2),
+                                ),
+                              );
                             },
                             activeColor: Colors.green,
                             activeTrackColor: Colors.green.withOpacity(0.5),
@@ -477,11 +546,11 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
                           'Select Your PUV Type',
                           style: TextStyle(
                             color: Colors.white,
-                            fontSize: 18,
+                            fontSize: 16,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
-                        const SizedBox(height: 16),
+                        const SizedBox(height: 10),
                         SingleChildScrollView(
                           scrollDirection: Axis.horizontal,
                           child: Row(
@@ -491,7 +560,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
                                   bool isSelected =
                                       selectedPUVType == entry.key;
                                   return Padding(
-                                    padding: const EdgeInsets.only(right: 12.0),
+                                    padding: const EdgeInsets.only(right: 8.0),
                                     child: ElevatedButton(
                                       onPressed: () {
                                         setState(() {
@@ -510,12 +579,12 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
                                                 ? Colors.blue
                                                 : Colors.white.withOpacity(0.1),
                                         padding: const EdgeInsets.symmetric(
-                                          horizontal: 24,
-                                          vertical: 16,
+                                          horizontal: 16,
+                                          vertical: 12,
                                         ),
                                         shape: RoundedRectangleBorder(
                                           borderRadius: BorderRadius.circular(
-                                            12,
+                                            10,
                                           ),
                                         ),
                                       ),
@@ -553,7 +622,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
                       ],
                     ),
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 12),
 
                   // Available Routes Section
                   if (routes.isNotEmpty)
@@ -569,7 +638,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
                                 'Select Your Route',
                                 style: TextStyle(
                                   color: Colors.white,
-                                  fontSize: 18,
+                                  fontSize: 16,
                                   fontWeight: FontWeight.bold,
                                 ),
                               ),
@@ -588,9 +657,10 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
                                 ),
                             ],
                           ),
-                          const SizedBox(height: 8),
-                          SizedBox(
-                            height: 120,
+                          const SizedBox(height: 6),
+                          Container(
+                            width: double.infinity,
+                            height: 105,
                             child:
                                 _isLoadingRoutes
                                     ? const Center(
@@ -618,18 +688,23 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
 
                   // Map Widget
                   Expanded(
-                    child: ClipRRect(
-                      borderRadius: const BorderRadius.vertical(
-                        top: Radius.circular(20),
-                      ),
-                      child: HomeMapWidget(
-                        key: _mapKey,
-                        onDestinationSelected: (destination) {
-                          setState(() {
-                            _destinationController.text = destination;
-                          });
-                        },
-                      ),
+                    child: Stack(
+                      children: [
+                        ClipRRect(
+                          borderRadius: const BorderRadius.vertical(
+                            top: Radius.circular(20),
+                          ),
+                          child: HomeMapWidget(
+                            key: _mapKey,
+                            showUserLocation: _isLocationVisibleToCommuters,
+                            onDestinationSelected: (destination) {
+                              setState(() {
+                                _destinationController.text = destination;
+                              });
+                            },
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ],
@@ -703,6 +778,18 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
                                         ),
                                       ),
                                       SizedBox(height: 4),
+                                      Text(
+                                        FirebaseAuth
+                                                .instance
+                                                .currentUser
+                                                ?.displayName ??
+                                            'User',
+                                        style: TextStyle(
+                                          color: Colors.white70,
+                                          fontSize: 14,
+                                        ),
+                                      ),
+                                      SizedBox(height: 4),
                                       GestureDetector(
                                         onTap: _switchUserRole,
                                         child: Text(
@@ -764,10 +851,17 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
                                   ),
                                   _buildDrawerItem(
                                     icon: Icons.person,
-                                    title: 'Profile',
+                                    title: 'Account',
                                     onTap: () {
                                       _toggleDrawer();
-                                      // TODO: Navigate to profile
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder:
+                                              (context) =>
+                                                  const EditProfileScreen(),
+                                        ),
+                                      );
                                     },
                                   ),
                                   _buildDrawerItem(

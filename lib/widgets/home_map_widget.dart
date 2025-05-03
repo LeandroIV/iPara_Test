@@ -19,11 +19,13 @@ const String googleApiKey = "AIzaSyDtm_kDatDOlKtvEMCA5lcVRFyTM6f6NNk";
 class HomeMapWidget extends StatefulWidget {
   final Function(String) onDestinationSelected;
   final bool showUserLocation;
+  final Function? onLocationPermissionGranted;
 
   const HomeMapWidget({
     super.key,
     required this.onDestinationSelected,
     this.showUserLocation = true,
+    this.onLocationPermissionGranted,
   });
 
   @override
@@ -62,57 +64,82 @@ class HomeMapWidgetState extends State<HomeMapWidget> {
   }
 
   void _initializePlacesApi() {
-    // Create a hidden div for the map if it doesn't exist
-    var mapDiv = html.document.getElementById('map');
-    if (mapDiv == null) {
-      mapDiv =
-          html.DivElement()
-            ..id = 'map'
-            ..style.visibility = 'hidden'
-            ..style.height = '0px'
-            ..style.width = '0px';
-      html.document.body!.children.add(mapDiv);
-    }
+    // Skip initialization if we're not on web
+    if (!kIsWeb) return;
 
-    // Start checking for Places API initialization
-    _placesApiCheckTimer?.cancel();
-    _placesApiCheckTimer = Timer.periodic(const Duration(milliseconds: 100), (
-      timer,
-    ) {
-      if (!mounted) {
-        timer.cancel();
-        return;
+    try {
+      // Create a hidden div for the map if it doesn't exist
+      var mapDiv = html.document.getElementById('map');
+      if (mapDiv == null) {
+        mapDiv =
+            html.DivElement()
+              ..id = 'map'
+              ..style.visibility = 'hidden'
+              ..style.height = '0px'
+              ..style.width = '0px';
+        html.document.body!.children.add(mapDiv);
       }
 
-      try {
-        if (js.context.hasProperty('google') &&
-            js.context['google'].hasProperty('maps') &&
-            js.context['google']['maps'].hasProperty('places')) {
-          final maps = js.context['google']['maps'];
-          final placesService = js.JsObject(maps['places']['PlacesService'], [
-            mapDiv,
-          ]);
-
-          setState(() {
-            _placesService = placesService;
-            _isPlacesApiInitialized = true;
-          });
-
-          print('Places API initialized successfully');
+      // Start checking for Places API initialization
+      _placesApiCheckTimer?.cancel();
+      _placesApiCheckTimer = Timer.periodic(const Duration(milliseconds: 300), (
+        timer,
+      ) {
+        if (!mounted) {
           timer.cancel();
+          return;
         }
-      } catch (e) {
-        print('Waiting for Places API initialization: $e');
-      }
-    });
+
+        try {
+          if (js.context.hasProperty('google') &&
+              js.context['google'].hasProperty('maps') &&
+              js.context['google']['maps'].hasProperty('places')) {
+            final maps = js.context['google']['maps'];
+            final placesService = js.JsObject(maps['places']['PlacesService'], [
+              mapDiv,
+            ]);
+
+            if (mounted) {
+              setState(() {
+                _placesService = placesService;
+                _isPlacesApiInitialized = true;
+              });
+            }
+
+            print('Places API initialized successfully');
+            timer.cancel();
+          }
+        } catch (e) {
+          print('Waiting for Places API initialization: $e');
+
+          // Cancel the timer after several attempts to avoid infinite checking
+          if (timer.tick > 20) {
+            // After about 6 seconds
+            print('Places API initialization timed out');
+            timer.cancel();
+          }
+        }
+      });
+    } catch (e) {
+      print('Error setting up Places API initialization: $e');
+    }
   }
 
   @override
   void dispose() {
+    // Cancel position subscription first
     _positionStreamSubscription?.cancel();
-    _mapController?.dispose();
+    // Cancel timers before disposing controller
     _debounceTimer?.cancel();
     _placesApiCheckTimer?.cancel();
+    // Safely dispose map controller
+    if (_mapController != null) {
+      try {
+        _mapController!.dispose();
+      } catch (e) {
+        print('Error disposing map controller: $e');
+      }
+    }
     super.dispose();
   }
 
@@ -123,7 +150,7 @@ class HomeMapWidgetState extends State<HomeMapWidget> {
     String? routeName,
     Color routeColor = Colors.amber,
   }) async {
-    if (_mapController == null) return false;
+    if (_mapController == null || !mounted) return false;
 
     try {
       setState(() {
@@ -135,6 +162,8 @@ class HomeMapWidgetState extends State<HomeMapWidget> {
         origin,
         destination,
       );
+
+      if (!mounted) return false;
 
       final PolylineId userRouteId = PolylineId('user_route');
       final Polyline polyline = Polyline(
@@ -150,16 +179,18 @@ class HomeMapWidgetState extends State<HomeMapWidget> {
       });
 
       // Fit the map to include the entire route
-      if (polylineCoordinates.isNotEmpty) {
+      if (polylineCoordinates.isNotEmpty && mounted && _mapController != null) {
         _updateCameraToShowRoute(polylineCoordinates);
       }
 
       return true;
     } catch (e) {
       print('Error showing route: $e');
-      setState(() {
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
       return false;
     }
   }
@@ -340,6 +371,8 @@ class HomeMapWidgetState extends State<HomeMapWidget> {
     int routeColor, {
     String? routeName,
   }) async {
+    if (!mounted || _mapController == null) return;
+
     setState(() {
       _isLoading = true;
     });
@@ -351,6 +384,7 @@ class HomeMapWidgetState extends State<HomeMapWidget> {
       // Get directions from Google API to follow actual roads
       for (int i = 0; i < routePoints.length - 1; i++) {
         final result = await _getDirections(routePoints[i], routePoints[i + 1]);
+        if (!mounted) return;
 
         // Skip the first point of each segment except the first to avoid duplicates
         if (i > 0 && result.isNotEmpty) {
@@ -359,6 +393,8 @@ class HomeMapWidgetState extends State<HomeMapWidget> {
           polylineCoordinates.addAll(result);
         }
       }
+
+      if (!mounted) return;
 
       // Create a polyline
       final PolylineId puvRouteId = PolylineId('puv_route');
@@ -376,39 +412,47 @@ class HomeMapWidgetState extends State<HomeMapWidget> {
       });
 
       // Update camera to show the entire route
-      _updateCameraToShowRoute(polylineCoordinates);
+      if (_mapController != null && mounted) {
+        _updateCameraToShowRoute(polylineCoordinates);
+      }
     } catch (e) {
       print('Error getting directions: $e');
-      setState(() {
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
   // Method to update camera position to show the entire route
   void _updateCameraToShowRoute(List<LatLng> points) {
-    if (points.isEmpty) return;
+    if (points.isEmpty || _mapController == null || !mounted) return;
 
-    double minLat = points.first.latitude;
-    double maxLat = points.first.latitude;
-    double minLng = points.first.longitude;
-    double maxLng = points.first.longitude;
+    try {
+      double minLat = points.first.latitude;
+      double maxLat = points.first.latitude;
+      double minLng = points.first.longitude;
+      double maxLng = points.first.longitude;
 
-    for (var point in points) {
-      if (point.latitude < minLat) minLat = point.latitude;
-      if (point.latitude > maxLat) maxLat = point.latitude;
-      if (point.longitude < minLng) minLng = point.longitude;
-      if (point.longitude > maxLng) maxLng = point.longitude;
+      for (var point in points) {
+        if (point.latitude < minLat) minLat = point.latitude;
+        if (point.latitude > maxLat) maxLat = point.latitude;
+        if (point.longitude < minLng) minLng = point.longitude;
+        if (point.longitude > maxLng) maxLng = point.longitude;
+      }
+
+      // Create a LatLngBounds
+      final bounds = LatLngBounds(
+        southwest: LatLng(minLat, minLng),
+        northeast: LatLng(maxLat, maxLng),
+      );
+
+      // Animate camera to show all the points with padding
+      _mapController?.animateCamera(CameraUpdate.newLatLngBounds(bounds, 50));
+    } catch (e) {
+      print('Error updating camera position: $e');
     }
-
-    // Create a LatLngBounds
-    final bounds = LatLngBounds(
-      southwest: LatLng(minLat, minLng),
-      northeast: LatLng(maxLat, maxLng),
-    );
-
-    // Animate camera to show all the points with padding
-    _mapController?.animateCamera(CameraUpdate.newLatLngBounds(bounds, 50));
   }
 
   // Clear routes
@@ -425,9 +469,8 @@ class HomeMapWidgetState extends State<HomeMapWidget> {
 
   // Expose search functionality to be called from parent widget
   Future<List<dynamic>> searchPlaces(String query) async {
-    if (query.isEmpty) {
-      _searchResults = [];
-      return _searchResults;
+    if (!mounted || query.isEmpty) {
+      return [];
     }
 
     if (kIsWeb) {
@@ -457,25 +500,53 @@ class HomeMapWidgetState extends State<HomeMapWidget> {
 
         // Create a completer to handle the async response
         final completer = Completer<List<dynamic>>();
+        bool hasCompleted = false;
 
         autocompleteService.callMethod('getPlacePredictions', [
           request,
           (predictions, status) {
-            if (status == maps['places']['PlacesServiceStatus']['OK']) {
-              _searchResults = List.from(predictions);
-              completer.complete(_searchResults);
+            if (!mounted || hasCompleted) {
+              if (!hasCompleted) {
+                hasCompleted = true;
+                completer.complete([]);
+              }
+              return;
+            }
+
+            if (status == maps['places']['PlacesServiceStatus']['OK'] &&
+                predictions != null) {
+              try {
+                List<dynamic> results = List.from(predictions);
+                if (mounted) {
+                  setState(() => _searchResults = results);
+                }
+                hasCompleted = true;
+                completer.complete(results);
+              } catch (e) {
+                print('Error processing place predictions: $e');
+                hasCompleted = true;
+                completer.complete([]);
+              }
             } else {
               print('Places API error: $status');
-              _searchResults = [];
+              hasCompleted = true;
               completer.complete([]);
             }
           },
         ]);
 
+        // Set a timeout to avoid waiting forever
+        Timer(Duration(seconds: 10), () {
+          if (!hasCompleted) {
+            print('Places search timed out');
+            hasCompleted = true;
+            completer.complete([]);
+          }
+        });
+
         return completer.future;
       } catch (e) {
         print('Error searching places: $e');
-        _searchResults = [];
         return [];
       }
     } else {
@@ -507,12 +578,20 @@ class HomeMapWidgetState extends State<HomeMapWidget> {
           }),
         );
 
+        if (!mounted) return [];
+
         if (response.statusCode == 200) {
           final data = json.decode(response.body);
           if (data['places'] != null) {
-            _searchResults = data['places'];
-            return _searchResults;
+            final results = data['places'];
+            if (mounted) {
+              setState(() => _searchResults = results);
+            }
+            return results;
           }
+        } else {
+          print('Places API HTTP error: ${response.statusCode}');
+          print('Response: ${response.body}');
         }
         return [];
       } catch (e) {
@@ -524,6 +603,8 @@ class HomeMapWidgetState extends State<HomeMapWidget> {
 
   // Expose place details functionality
   Future<bool> getPlaceDetails(String placeId) async {
+    if (!mounted || _mapController == null) return false;
+
     if (kIsWeb) {
       if (!_isPlacesApiInitialized) {
         print('Places API not initialized yet');
@@ -543,43 +624,55 @@ class HomeMapWidgetState extends State<HomeMapWidget> {
         _placesService.callMethod('getDetails', [
           request,
           (place, status) {
+            if (!mounted) {
+              completer.complete(false);
+              return;
+            }
+
             if (status == maps['places']['PlacesServiceStatus']['OK']) {
-              final location = place['geometry']['location'];
-              final lat = location.callMethod('lat');
-              final lng = location.callMethod('lng');
-              final name = place['name'];
+              try {
+                final location = place['geometry']['location'];
+                final lat = location.callMethod('lat');
+                final lng = location.callMethod('lng');
+                final name = place['name'];
 
-              // Only remove the destination marker, not all markers
-              _markers.removeWhere(
-                (marker) => marker.markerId.value == 'selected_location',
-              );
+                // Only remove the destination marker, not all markers
+                _markers.removeWhere(
+                  (marker) => marker.markerId.value == 'selected_location',
+                );
 
-              // Add the destination marker
-              final destinationLocation = LatLng(lat, lng);
-              _markers.add(
-                Marker(
-                  markerId: const MarkerId('selected_location'),
-                  position: destinationLocation,
-                  infoWindow: InfoWindow(title: name),
-                  icon: BitmapDescriptor.defaultMarkerWithHue(
-                    BitmapDescriptor.hueGreen,
+                // Add the destination marker
+                final destinationLocation = LatLng(lat, lng);
+                _markers.add(
+                  Marker(
+                    markerId: const MarkerId('selected_location'),
+                    position: destinationLocation,
+                    infoWindow: InfoWindow(title: name),
+                    icon: BitmapDescriptor.defaultMarkerWithHue(
+                      BitmapDescriptor.hueGreen,
+                    ),
                   ),
-                ),
-              );
+                );
 
-              _mapController?.animateCamera(
-                CameraUpdate.newCameraPosition(
-                  CameraPosition(target: destinationLocation, zoom: 15),
-                ),
-              );
+                if (mounted && _mapController != null) {
+                  _mapController?.animateCamera(
+                    CameraUpdate.newCameraPosition(
+                      CameraPosition(target: destinationLocation, zoom: 15),
+                    ),
+                  );
 
-              // Show route from user location to destination if user location is available and visible
-              if (_userLocation != null && widget.showUserLocation) {
-                showRoute(_userLocation!, destinationLocation);
+                  // Show route from user location to destination if user location is available and visible
+                  if (_userLocation != null && widget.showUserLocation) {
+                    showRoute(_userLocation!, destinationLocation);
+                  }
+                }
+
+                widget.onDestinationSelected(name);
+                completer.complete(true);
+              } catch (e) {
+                print('Error processing place details: $e');
+                completer.complete(false);
               }
-
-              widget.onDestinationSelected(name);
-              completer.complete(true);
             } else {
               print('Error getting place details: $status');
               completer.complete(false);
@@ -601,6 +694,8 @@ class HomeMapWidgetState extends State<HomeMapWidget> {
             '&key=$googleApiKey',
           ),
         );
+
+        if (!mounted) return false;
 
         if (response.statusCode == 200) {
           final place = json.decode(response.body);
@@ -627,15 +722,17 @@ class HomeMapWidgetState extends State<HomeMapWidget> {
             ),
           );
 
-          await _mapController?.animateCamera(
-            CameraUpdate.newCameraPosition(
-              CameraPosition(target: destinationLocation, zoom: 15),
-            ),
-          );
+          if (mounted && _mapController != null) {
+            await _mapController?.animateCamera(
+              CameraUpdate.newCameraPosition(
+                CameraPosition(target: destinationLocation, zoom: 15),
+              ),
+            );
 
-          // Show route from user location to destination if user location is available and visible
-          if (_userLocation != null && widget.showUserLocation) {
-            await showRoute(_userLocation!, destinationLocation);
+            // Show route from user location to destination if user location is available and visible
+            if (_userLocation != null && widget.showUserLocation) {
+              await showRoute(_userLocation!, destinationLocation);
+            }
           }
 
           widget.onDestinationSelected(name);
@@ -650,41 +747,67 @@ class HomeMapWidgetState extends State<HomeMapWidget> {
   }
 
   Future<void> _initializeLocation() async {
+    if (!mounted) return;
     setState(() => _isLoading = true);
 
     try {
       bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
       if (!serviceEnabled) {
-        throw Exception('Location services are disabled');
+        if (mounted) {
+          setState(() => _isLoading = false);
+          _showErrorDialog('Location services are disabled');
+        }
+        return;
       }
 
       LocationPermission permission = await Geolocator.checkPermission();
       if (permission == LocationPermission.denied) {
         permission = await Geolocator.requestPermission();
         if (permission == LocationPermission.denied) {
-          throw Exception('Location permission denied');
+          if (mounted) {
+            setState(() => _isLoading = false);
+            _showLocationPermissionDeniedDialog();
+          }
+          return;
+        }
+
+        // If we get here, permission was just granted - notify the parent
+        if (mounted && widget.onLocationPermissionGranted != null) {
+          widget.onLocationPermissionGranted!();
         }
       }
 
       if (permission == LocationPermission.deniedForever) {
-        throw Exception('Location permissions are permanently denied');
+        if (mounted) {
+          setState(() => _isLoading = false);
+          _showLocationPermissionDeniedDialog();
+        }
+        return;
       }
 
-      Position position = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
-        timeLimit: const Duration(seconds: 5),
-      ).catchError((e) async {
-        // Fallback to reduced accuracy
-        return await Geolocator.getCurrentPosition(
-          desiredAccuracy: LocationAccuracy.reduced,
-          timeLimit: const Duration(seconds: 10),
+      // Increase timeouts to avoid TimeoutExceptions
+      Position position;
+      try {
+        position = await Geolocator.getCurrentPosition(
+          desiredAccuracy: LocationAccuracy.high,
+          timeLimit: const Duration(seconds: 20), // Increased timeout
         );
-      });
+      } catch (e) {
+        print(
+          'Error getting high accuracy position: $e, falling back to lower accuracy',
+        );
+        // Fallback to reduced accuracy
+        position = await Geolocator.getCurrentPosition(
+          desiredAccuracy: LocationAccuracy.reduced,
+          timeLimit: const Duration(seconds: 30), // Increased timeout further
+        );
+      }
 
       if (mounted) {
         setState(() {
           _userLocation = LatLng(position.latitude, position.longitude);
           _isLoading = false;
+          _isLocationPermissionGranted = true;
         });
 
         // Add the user location marker
@@ -693,13 +816,24 @@ class HomeMapWidgetState extends State<HomeMapWidget> {
         // Start location updates
         _startLocationUpdates();
 
-        // Center map on user location
+        // Center map on user location only if controller is ready
         await Future.delayed(const Duration(milliseconds: 500));
-        _centerOnUserLocation();
+        if (mounted && _mapController != null) {
+          _centerOnUserLocation();
+        }
       }
     } catch (e) {
       print('Error initializing location: $e');
-      setState(() => _isLoading = false);
+      if (mounted) {
+        setState(() => _isLoading = false);
+
+        // Show error dialog with more details if it's a timeout
+        if (e.toString().contains('TimeoutException')) {
+          _showErrorDialog(
+            'Location request timed out. Please check your location settings and try again.',
+          );
+        }
+      }
     }
   }
 
@@ -731,6 +865,7 @@ class HomeMapWidgetState extends State<HomeMapWidget> {
       onError: (e) {
         print('Error getting location updates: $e');
       },
+      cancelOnError: false, // Don't cancel subscription on error
     );
   }
 
@@ -757,12 +892,16 @@ class HomeMapWidgetState extends State<HomeMapWidget> {
   }
 
   Future<void> _centerOnUserLocation() async {
-    if (_mapController != null && _userLocation != null) {
+    if (_mapController == null || _userLocation == null || !mounted) return;
+
+    try {
       await _mapController!.animateCamera(
         CameraUpdate.newCameraPosition(
           CameraPosition(target: _userLocation!, zoom: 15),
         ),
       );
+    } catch (e) {
+      print('Error centering on user location: $e');
     }
   }
 
@@ -908,9 +1047,13 @@ class HomeMapWidgetState extends State<HomeMapWidget> {
               zoom: 15,
             ),
             onMapCreated: (controller) {
-              _mapController = controller;
-              if (_userLocation != null) {
-                _centerOnUserLocation();
+              if (mounted) {
+                setState(() {
+                  _mapController = controller;
+                });
+                if (_userLocation != null) {
+                  _centerOnUserLocation();
+                }
               }
             },
             myLocationEnabled: true,

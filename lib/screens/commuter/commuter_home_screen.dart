@@ -4,6 +4,7 @@ import '../../services/user_service.dart';
 import '../../widgets/home_map_widget.dart';
 import '../../services/route_service.dart';
 import '../../models/route_model.dart';
+import '../edit_profile_screen.dart';
 import 'dart:async';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -26,8 +27,8 @@ class _CommuterHomeScreenState extends State<CommuterHomeScreen>
   final GlobalKey<HomeMapWidgetState> _mapKey = GlobalKey<HomeMapWidgetState>();
   final GlobalKey _searchBarKey = GlobalKey();
 
-  // Add privacy visibility toggle
-  bool _isLocationVisibleToDrivers = false;
+  // Make location visibility true by default
+  bool _isLocationVisibleToDrivers = true;
 
   // Add these variables for search functionality
   bool _isSearching = false;
@@ -384,6 +385,31 @@ class _CommuterHomeScreenState extends State<CommuterHomeScreen>
     // TODO: Implement actual location sharing logic with backend
   }
 
+  // Handle location permission granted callback
+  void _handleLocationPermissionGranted() {
+    if (!_isLocationVisibleToDrivers) {
+      setState(() {
+        _isLocationVisibleToDrivers = true;
+      });
+
+      // Show a snackbar informing the user they are now visible
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Your location is now visible to drivers for improved route matching',
+          ),
+          backgroundColor: Colors.green,
+          duration: Duration(seconds: 3),
+          action: SnackBarAction(
+            label: 'HIDE',
+            onPressed: _toggleLocationVisibility,
+            textColor: Colors.white,
+          ),
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     // Get filtered routes based on selected PUV type
@@ -457,7 +483,12 @@ class _CommuterHomeScreenState extends State<CommuterHomeScreen>
                         IconButton(
                           icon: Icon(Icons.person, color: Colors.white),
                           onPressed: () {
-                            // Navigate to profile
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const EditProfileScreen(),
+                              ),
+                            );
                           },
                         ),
                       ],
@@ -885,6 +916,18 @@ class _CommuterHomeScreenState extends State<CommuterHomeScreen>
                                         ),
                                       ),
                                       SizedBox(height: 4),
+                                      Text(
+                                        FirebaseAuth
+                                                .instance
+                                                .currentUser
+                                                ?.displayName ??
+                                            'User',
+                                        style: TextStyle(
+                                          color: Colors.white70,
+                                          fontSize: 14,
+                                        ),
+                                      ),
+                                      SizedBox(height: 4),
                                       GestureDetector(
                                         onTap: _switchUserRole,
                                         child: Text(
@@ -938,10 +981,17 @@ class _CommuterHomeScreenState extends State<CommuterHomeScreen>
                                   ),
                                   _buildDrawerItem(
                                     icon: Icons.person,
-                                    title: 'Profile',
+                                    title: 'Account',
                                     onTap: () {
                                       _toggleDrawer();
-                                      // TODO: Navigate to profile
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder:
+                                              (context) =>
+                                                  const EditProfileScreen(),
+                                        ),
+                                      );
                                     },
                                   ),
                                   _buildDrawerItem(

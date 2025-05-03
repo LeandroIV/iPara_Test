@@ -485,10 +485,11 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                               color: Colors.white,
                             )
                             : const Text(
-                              'Save Changes',
+                              'SAVE CHANGES',
                               style: TextStyle(
-                                fontSize: 16,
+                                fontSize: 18,
                                 fontWeight: FontWeight.bold,
+                                color: Colors.black,
                               ),
                             ),
                   ),

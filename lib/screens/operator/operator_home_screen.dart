@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../models/user_role.dart';
 import '../../services/user_service.dart';
+import '../edit_profile_screen.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -235,7 +236,12 @@ class _OperatorHomeScreenState extends State<OperatorHomeScreen>
                         IconButton(
                           icon: Icon(Icons.person, color: Colors.white),
                           onPressed: () {
-                            // Navigate to profile
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const EditProfileScreen(),
+                              ),
+                            );
                           },
                         ),
                       ],
@@ -544,6 +550,18 @@ class _OperatorHomeScreenState extends State<OperatorHomeScreen>
                                         ),
                                       ),
                                       SizedBox(height: 4),
+                                      Text(
+                                        FirebaseAuth
+                                                .instance
+                                                .currentUser
+                                                ?.displayName ??
+                                            'User',
+                                        style: TextStyle(
+                                          color: Colors.white70,
+                                          fontSize: 14,
+                                        ),
+                                      ),
+                                      SizedBox(height: 4),
                                       GestureDetector(
                                         onTap: _switchUserRole,
                                         child: Text(
@@ -609,6 +627,21 @@ class _OperatorHomeScreenState extends State<OperatorHomeScreen>
                                     onTap: () {
                                       _toggleDrawer();
                                       // TODO: Navigate to analytics
+                                    },
+                                  ),
+                                  _buildDrawerItem(
+                                    icon: Icons.person,
+                                    title: 'Account',
+                                    onTap: () {
+                                      _toggleDrawer();
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder:
+                                              (context) =>
+                                                  const EditProfileScreen(),
+                                        ),
+                                      );
                                     },
                                   ),
                                   _buildDrawerItem(
