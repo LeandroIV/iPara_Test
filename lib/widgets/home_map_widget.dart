@@ -18,8 +18,13 @@ const String googleApiKey = "AIzaSyDtm_kDatDOlKtvEMCA5lcVRFyTM6f6NNk";
 
 class HomeMapWidget extends StatefulWidget {
   final Function(String) onDestinationSelected;
+  final bool showUserLocation;
 
-  const HomeMapWidget({super.key, required this.onDestinationSelected});
+  const HomeMapWidget({
+    super.key,
+    required this.onDestinationSelected,
+    this.showUserLocation = true,
+  });
 
   @override
   State<HomeMapWidget> createState() => HomeMapWidgetState();
@@ -568,8 +573,8 @@ class HomeMapWidgetState extends State<HomeMapWidget> {
                 ),
               );
 
-              // Show route from user location to destination if user location is available
-              if (_userLocation != null) {
+              // Show route from user location to destination if user location is available and visible
+              if (_userLocation != null && widget.showUserLocation) {
                 showRoute(_userLocation!, destinationLocation);
               }
 
@@ -628,8 +633,8 @@ class HomeMapWidgetState extends State<HomeMapWidget> {
             ),
           );
 
-          // Show route from user location to destination if user location is available
-          if (_userLocation != null) {
+          // Show route from user location to destination if user location is available and visible
+          if (_userLocation != null && widget.showUserLocation) {
             await showRoute(_userLocation!, destinationLocation);
           }
 
@@ -712,7 +717,14 @@ class HomeMapWidgetState extends State<HomeMapWidget> {
           setState(() {
             _userLocation = LatLng(position.latitude, position.longitude);
             // Update the user location marker
-            _updateUserLocationMarker();
+            if (widget.showUserLocation) {
+              _updateUserLocationMarker();
+            } else {
+              // Remove the user marker if visibility is off
+              _markers.removeWhere(
+                (marker) => marker.markerId.value == 'user_location',
+              );
+            }
           });
         }
       },
@@ -728,6 +740,9 @@ class HomeMapWidgetState extends State<HomeMapWidget> {
 
     // Remove old user location marker if it exists
     _markers.removeWhere((marker) => marker.markerId.value == 'user_location');
+
+    // Only add the user location marker if showUserLocation is true
+    if (!widget.showUserLocation) return;
 
     // Add new marker at current location
     _markers.add(
@@ -781,8 +796,10 @@ class HomeMapWidgetState extends State<HomeMapWidget> {
         ),
       );
 
-      // Show directions if user location is available
-      if (_userLocation != null && placeName != null) {
+      // Show directions if user location is available and visible
+      if (_userLocation != null &&
+          placeName != null &&
+          widget.showUserLocation) {
         await showRoute(_userLocation!, location);
       }
 
@@ -849,6 +866,33 @@ class HomeMapWidgetState extends State<HomeMapWidget> {
             ],
           ),
     );
+  }
+
+  // Public method to update the user location visibility
+  void updateUserLocationVisibility(bool isVisible) {
+    // Update map markers based on visibility
+    if (isVisible) {
+      if (_userLocation != null) {
+        _updateUserLocationMarker();
+      }
+    } else {
+      // Remove user location marker
+      _markers.removeWhere(
+        (marker) => marker.markerId.value == 'user_location',
+      );
+    }
+
+    // Force rebuild
+    setState(() {});
+  }
+
+  // Method to clear the destination marker
+  void clearDestinationMarker() {
+    setState(() {
+      _markers.removeWhere(
+        (marker) => marker.markerId.value == 'selected_location',
+      );
+    });
   }
 
   @override

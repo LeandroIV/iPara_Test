@@ -26,6 +26,9 @@ class _CommuterHomeScreenState extends State<CommuterHomeScreen>
   final GlobalKey<HomeMapWidgetState> _mapKey = GlobalKey<HomeMapWidgetState>();
   final GlobalKey _searchBarKey = GlobalKey();
 
+  // Add privacy visibility toggle
+  bool _isLocationVisibleToDrivers = false;
+
   // Add these variables for search functionality
   bool _isSearching = false;
   List<dynamic> _googlePlacesResults = [];
@@ -351,6 +354,36 @@ class _CommuterHomeScreenState extends State<CommuterHomeScreen>
     );
   }
 
+  // Toggle location visibility to drivers
+  void _toggleLocationVisibility() {
+    setState(() {
+      _isLocationVisibleToDrivers = !_isLocationVisibleToDrivers;
+    });
+
+    // Explicitly refresh the map to show/hide the user location pin immediately
+    if (_mapKey.currentState != null) {
+      _mapKey.currentState!.updateUserLocationVisibility(
+        _isLocationVisibleToDrivers,
+      );
+    }
+
+    // Show confirmation message
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          _isLocationVisibleToDrivers
+              ? 'Your location is now visible to drivers'
+              : 'Your location is now hidden from drivers',
+        ),
+        backgroundColor:
+            _isLocationVisibleToDrivers ? Colors.green : Colors.red,
+        duration: Duration(seconds: 2),
+      ),
+    );
+
+    // TODO: Implement actual location sharing logic with backend
+  }
+
   @override
   Widget build(BuildContext context) {
     // Get filtered routes based on selected PUV type
@@ -508,6 +541,16 @@ class _CommuterHomeScreenState extends State<CommuterHomeScreen>
                                       _destinationController.clear();
                                       _googlePlacesResults = [];
                                     });
+
+                                    // Clear the user route polyline when search is cleared
+                                    if (_mapKey.currentState != null) {
+                                      _mapKey.currentState!.clearRoutes(
+                                        clearUserRoute: true,
+                                        clearPUVRoute: false,
+                                      );
+                                      _mapKey.currentState!
+                                          .clearDestinationMarker();
+                                    }
                                   },
                                 ),
                               if (!_isSearching)
@@ -707,18 +750,68 @@ class _CommuterHomeScreenState extends State<CommuterHomeScreen>
 
                   // Map Widget
                   Expanded(
-                    child: ClipRRect(
-                      borderRadius: const BorderRadius.vertical(
-                        top: Radius.circular(20),
-                      ),
-                      child: HomeMapWidget(
-                        key: _mapKey,
-                        onDestinationSelected: (destination) {
-                          setState(() {
-                            _destinationController.text = destination;
-                          });
-                        },
-                      ),
+                    child: Stack(
+                      children: [
+                        // Map with rounded corners
+                        ClipRRect(
+                          borderRadius: const BorderRadius.vertical(
+                            top: Radius.circular(20),
+                          ),
+                          child: HomeMapWidget(
+                            key: _mapKey,
+                            showUserLocation: _isLocationVisibleToDrivers,
+                            onDestinationSelected: (destination) {
+                              setState(() {
+                                _destinationController.text = destination;
+                              });
+                            },
+                          ),
+                        ),
+
+                        // Privacy toggle button (positioned at the bottom right of the map)
+                        Positioned(
+                          left: 16,
+                          top: 16,
+                          child: Material(
+                            elevation: 4,
+                            borderRadius: BorderRadius.circular(24),
+                            child: Container(
+                              decoration: BoxDecoration(
+                                color:
+                                    _isLocationVisibleToDrivers
+                                        ? Colors.green.withOpacity(0.9)
+                                        : Colors.red.withOpacity(0.9),
+                                borderRadius: BorderRadius.circular(24),
+                              ),
+                              child: Tooltip(
+                                message:
+                                    _isLocationVisibleToDrivers
+                                        ? 'Your location is visible to drivers'
+                                        : 'Your location is hidden from drivers',
+                                child: InkWell(
+                                  onTap: _toggleLocationVisibility,
+                                  borderRadius: BorderRadius.circular(24),
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(8.0),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(
+                                          _isLocationVisibleToDrivers
+                                              ? Icons.visibility
+                                              : Icons.visibility_off,
+                                          color: Colors.white,
+                                          size: 20,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ],
