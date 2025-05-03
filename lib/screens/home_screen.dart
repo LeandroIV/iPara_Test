@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:ipara_new/screens/edit_profile_screen.dart';
 import '../widgets/home_map_widget.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'dart:async';
 
 class HomeScreen extends StatefulWidget {
@@ -24,37 +23,6 @@ class _HomeScreenState extends State<HomeScreen>
   List<dynamic> _googlePlacesResults = [];
   bool _isLoadingPlaces = false;
   Timer? _debounceTimer;
-
-  // Updated location data with coordinates
-  final List<Map<String, dynamic>> _locations = [
-    {
-      'name': 'Centrio Mall',
-      'address': 'CM Recto Avenue, Cagayan de Oro',
-      'coordinates': const LatLng(8.4815, 124.6499),
-    },
-    {
-      'name': 'Limketkai Center',
-      'address': 'Limketkai Drive, Cagayan de Oro',
-      'coordinates': const LatLng(8.4827, 124.6472),
-    },
-    {
-      'name': 'SM CDO Downtown Premier',
-      'address': 'Claro M. Recto Avenue, Cagayan de Oro',
-      'coordinates': const LatLng(8.4755, 124.6445),
-    },
-    {
-      'name': 'Cogon Market',
-      'address': 'Osmeña Street, Cagayan de Oro',
-      'coordinates': const LatLng(8.4847, 124.6472),
-    },
-    {
-      'name': 'Divisoria',
-      'address': 'Corrales Avenue, Cagayan de Oro',
-      'coordinates': const LatLng(8.4778, 124.6472),
-    },
-  ];
-
-  List<Map<String, dynamic>> _filteredLocations = [];
 
   // Placeholder data for PUV counts
   final Map<String, int> puvCounts = {
