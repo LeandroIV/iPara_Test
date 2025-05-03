@@ -125,27 +125,22 @@ class HomeMapWidgetState extends State<HomeMapWidget> {
         _isLoading = true;
       });
 
-      // First clear any existing polylines
-      _polylines.clear();
-
-      // Get directions from Google API
+      // Only update the user route polyline
       final List<LatLng> polylineCoordinates = await _getDirections(
         origin,
         destination,
       );
 
-      final String polylineId =
-          routeName ?? 'route_${DateTime.now().millisecondsSinceEpoch}';
-
+      final PolylineId userRouteId = PolylineId('user_route');
       final Polyline polyline = Polyline(
-        polylineId: PolylineId(polylineId),
+        polylineId: userRouteId,
         color: routeColor,
         width: 5,
         points: polylineCoordinates,
       );
 
       setState(() {
-        _polylines[PolylineId(polylineId)] = polyline;
+        _polylines[userRouteId] = polyline;
         _isLoading = false;
       });
 
@@ -345,9 +340,7 @@ class HomeMapWidgetState extends State<HomeMapWidget> {
     });
 
     try {
-      // Clear previous polylines
-      _polylines.clear();
-
+      // Only update the PUV route polyline
       final List<LatLng> polylineCoordinates = [];
 
       // Get directions from Google API to follow actual roads
@@ -363,9 +356,9 @@ class HomeMapWidgetState extends State<HomeMapWidget> {
       }
 
       // Create a polyline
-      final PolylineId polylineId = PolylineId(routeName ?? 'route');
+      final PolylineId puvRouteId = PolylineId('puv_route');
       final Polyline polyline = Polyline(
-        polylineId: polylineId,
+        polylineId: puvRouteId,
         color: Color(routeColor),
         points: polylineCoordinates,
         width: 5,
@@ -373,7 +366,7 @@ class HomeMapWidgetState extends State<HomeMapWidget> {
 
       setState(() {
         _routePoints = polylineCoordinates;
-        _polylines[polylineId] = polyline;
+        _polylines[puvRouteId] = polyline;
         _isLoading = false;
       });
 
@@ -413,10 +406,15 @@ class HomeMapWidgetState extends State<HomeMapWidget> {
     _mapController?.animateCamera(CameraUpdate.newLatLngBounds(bounds, 50));
   }
 
-  // Clear all routes
-  void clearRoutes() {
+  // Clear routes
+  void clearRoutes({bool clearUserRoute = true, bool clearPUVRoute = true}) {
     setState(() {
-      _polylines.clear();
+      if (clearUserRoute) {
+        _polylines.remove(PolylineId('user_route'));
+      }
+      if (clearPUVRoute) {
+        _polylines.remove(PolylineId('puv_route'));
+      }
     });
   }
 
@@ -736,7 +734,7 @@ class HomeMapWidgetState extends State<HomeMapWidget> {
       Marker(
         markerId: const MarkerId('user_location'),
         position: _userLocation!,
-        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
+        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueBlue),
         infoWindow: const InfoWindow(title: 'You are here'),
         zIndex: 2, // Higher z-index to appear above other markers
       ),

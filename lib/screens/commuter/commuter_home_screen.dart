@@ -24,6 +24,7 @@ class _CommuterHomeScreenState extends State<CommuterHomeScreen>
   late Animation<double> _drawerAnimation;
   final TextEditingController _destinationController = TextEditingController();
   final GlobalKey<HomeMapWidgetState> _mapKey = GlobalKey<HomeMapWidgetState>();
+  final GlobalKey _searchBarKey = GlobalKey();
 
   // Add these variables for search functionality
   bool _isSearching = false;
@@ -434,6 +435,7 @@ class _CommuterHomeScreenState extends State<CommuterHomeScreen>
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16.0),
                     child: Container(
+                      key: _searchBarKey,
                       padding: const EdgeInsets.symmetric(
                         horizontal: 16,
                         vertical: 8,
@@ -522,7 +524,7 @@ class _CommuterHomeScreenState extends State<CommuterHomeScreen>
                                 ),
                             ],
                           ),
-                          // Loading indicator when searching
+                          // Loading indicator when searching (in column to avoid affecting layout)
                           if (_isSearching && _isLoadingPlaces)
                             Container(
                               margin: const EdgeInsets.only(top: 8),
@@ -531,72 +533,6 @@ class _CommuterHomeScreenState extends State<CommuterHomeScreen>
                                   color: Colors.amber,
                                   strokeWidth: 2,
                                 ),
-                              ),
-                            ),
-                          // Search results
-                          if (_isSearching && _googlePlacesResults.isNotEmpty)
-                            Container(
-                              margin: const EdgeInsets.only(top: 8),
-                              padding: const EdgeInsets.all(16.0),
-                              decoration: BoxDecoration(
-                                color: Colors.white.withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const Text(
-                                    'Suggested Locations',
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  ConstrainedBox(
-                                    constraints: BoxConstraints(
-                                      maxHeight:
-                                          MediaQuery.of(context).size.height *
-                                          0.3,
-                                    ),
-                                    child: ListView.builder(
-                                      shrinkWrap: true,
-                                      itemCount: _googlePlacesResults.length,
-                                      itemBuilder: (context, index) {
-                                        final place =
-                                            _googlePlacesResults[index];
-                                        return ListTile(
-                                          leading: const Icon(
-                                            Icons.location_on,
-                                            color: Colors.amber,
-                                          ),
-                                          title: Text(
-                                            place['structured_formatting']?['main_text'] ??
-                                                place['description'] ??
-                                                '',
-                                            style: const TextStyle(
-                                              color: Colors.white,
-                                              fontWeight: FontWeight.bold,
-                                            ),
-                                          ),
-                                          subtitle: Text(
-                                            place['structured_formatting']?['secondary_text'] ??
-                                                '',
-                                            style: const TextStyle(
-                                              color: Colors.white70,
-                                            ),
-                                            maxLines: 2,
-                                            overflow: TextOverflow.ellipsis,
-                                          ),
-                                          onTap: () {
-                                            _selectPlace(place);
-                                          },
-                                        );
-                                      },
-                                    ),
-                                  ),
-                                ],
                               ),
                             ),
                         ],
@@ -609,7 +545,7 @@ class _CommuterHomeScreenState extends State<CommuterHomeScreen>
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16.0),
                     child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                      crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
                         const Text(
                           'Select PUV Type',
@@ -620,72 +556,83 @@ class _CommuterHomeScreenState extends State<CommuterHomeScreen>
                           ),
                         ),
                         const SizedBox(height: 16),
-                        SingleChildScrollView(
-                          scrollDirection: Axis.horizontal,
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children:
-                                puvCounts.entries.map((entry) {
-                                  bool isSelected =
-                                      selectedPUVType == entry.key;
-                                  return Padding(
-                                    padding: const EdgeInsets.only(right: 12.0),
-                                    child: ElevatedButton(
-                                      onPressed: () {
-                                        setState(() {
-                                          selectedPUVType = entry.key;
+                        Container(
+                          width: double.infinity,
+                          alignment: Alignment.center,
+                          child: SingleChildScrollView(
+                            scrollDirection: Axis.horizontal,
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children:
+                                  puvCounts.entries.map((entry) {
+                                    bool isSelected =
+                                        selectedPUVType == entry.key;
+                                    return Padding(
+                                      padding: const EdgeInsets.only(
+                                        right: 12.0,
+                                      ),
+                                      child: ElevatedButton(
+                                        onPressed: () {
+                                          setState(() {
+                                            selectedPUVType = entry.key;
 
-                                          // Clear any selected route when changing PUV type
-                                          _selectedRoute = null;
-                                          if (_mapKey.currentState != null) {
-                                            _mapKey.currentState!.clearRoutes();
-                                          }
-                                        });
-                                      },
-                                      style: ElevatedButton.styleFrom(
-                                        backgroundColor:
-                                            isSelected
-                                                ? Colors.amber
-                                                : Colors.white.withOpacity(0.1),
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 24,
-                                          vertical: 16,
-                                        ),
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(
-                                            12,
+                                            // Clear any selected route when changing PUV type
+                                            _selectedRoute = null;
+                                            if (_mapKey.currentState != null) {
+                                              _mapKey.currentState!.clearRoutes(
+                                                clearUserRoute: false,
+                                                clearPUVRoute: true,
+                                              );
+                                            }
+                                          });
+                                        },
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor:
+                                              isSelected
+                                                  ? Colors.amber
+                                                  : Colors.white.withOpacity(
+                                                    0.1,
+                                                  ),
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 24,
+                                            vertical: 16,
                                           ),
-                                        ),
-                                      ),
-                                      child: Column(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Text(
-                                            entry.key,
-                                            style: TextStyle(
-                                              color:
-                                                  isSelected
-                                                      ? Colors.white
-                                                      : Colors.white70,
-                                              fontWeight: FontWeight.bold,
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(
+                                              12,
                                             ),
                                           ),
-                                          const SizedBox(height: 4),
-                                          Text(
-                                            '${entry.value} available',
-                                            style: TextStyle(
-                                              color:
-                                                  isSelected
-                                                      ? Colors.white70
-                                                      : Colors.white54,
-                                              fontSize: 12,
+                                        ),
+                                        child: Column(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Text(
+                                              entry.key,
+                                              style: TextStyle(
+                                                color:
+                                                    isSelected
+                                                        ? Colors.white
+                                                        : Colors.white70,
+                                                fontWeight: FontWeight.bold,
+                                              ),
                                             ),
-                                          ),
-                                        ],
+                                            const SizedBox(height: 4),
+                                            Text(
+                                              '${entry.value} available',
+                                              style: TextStyle(
+                                                color:
+                                                    isSelected
+                                                        ? Colors.white70
+                                                        : Colors.white54,
+                                                fontSize: 12,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
                                       ),
-                                    ),
-                                  );
-                                }).toList(),
+                                    );
+                                  }).toList(),
+                            ),
                           ),
                         ),
                       ],
@@ -698,10 +645,10 @@ class _CommuterHomeScreenState extends State<CommuterHomeScreen>
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 16.0),
                       child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                        crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
                           Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            mainAxisAlignment: MainAxisAlignment.center,
                             children: [
                               const Text(
                                 'Available Routes',
@@ -729,6 +676,7 @@ class _CommuterHomeScreenState extends State<CommuterHomeScreen>
                           const SizedBox(height: 8),
                           SizedBox(
                             height: 120,
+                            width: double.infinity,
                             child:
                                 _isLoadingRoutes
                                     ? const Center(
@@ -736,18 +684,21 @@ class _CommuterHomeScreenState extends State<CommuterHomeScreen>
                                         color: Colors.amber,
                                       ),
                                     )
-                                    : ListView.builder(
-                                      scrollDirection: Axis.horizontal,
-                                      itemCount: routes.length,
-                                      itemBuilder: (context, index) {
-                                        final route = routes[index];
-                                        final isSelected =
-                                            _selectedRoute?.id == route.id;
-                                        return _buildRouteCard(
-                                          route,
-                                          isSelected,
-                                        );
-                                      },
+                                    : Center(
+                                      child: ListView.builder(
+                                        scrollDirection: Axis.horizontal,
+                                        shrinkWrap: true,
+                                        itemCount: routes.length,
+                                        itemBuilder: (context, index) {
+                                          final route = routes[index];
+                                          final isSelected =
+                                              _selectedRoute?.id == route.id;
+                                          return _buildRouteCard(
+                                            route,
+                                            isSelected,
+                                          );
+                                        },
+                                      ),
                                     ),
                           ),
                         ],
@@ -955,6 +906,54 @@ class _CommuterHomeScreenState extends State<CommuterHomeScreen>
               );
             },
           ),
+
+          // Suggestions Overlay
+          if (_isSearching && _googlePlacesResults.isNotEmpty)
+            Positioned(
+              top: 130, // Adjust this value based on your UI
+              left: 16,
+              right: 16,
+              child: Material(
+                elevation: 8,
+                borderRadius: BorderRadius.circular(12),
+                color: const Color.fromARGB(255, 51, 51, 51).withOpacity(1),
+                child: Container(
+                  constraints: BoxConstraints(
+                    maxHeight: MediaQuery.of(context).size.height * 0.4,
+                  ),
+                  child: ListView.builder(
+                    padding: EdgeInsets.zero,
+                    shrinkWrap: true,
+                    itemCount: _googlePlacesResults.length,
+                    itemBuilder: (context, index) {
+                      final place = _googlePlacesResults[index];
+                      return ListTile(
+                        leading: Icon(Icons.location_on, color: Colors.amber),
+                        title: Text(
+                          place['structured_formatting']?['main_text'] ??
+                              place['description'] ??
+                              '',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        subtitle: Text(
+                          place['structured_formatting']?['secondary_text'] ??
+                              '',
+                          style: TextStyle(color: Colors.white70),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        onTap: () {
+                          _selectPlace(place);
+                        },
+                      );
+                    },
+                  ),
+                ),
+              ),
+            ),
         ],
       ),
     );
