@@ -14,7 +14,7 @@ migrate_working_dir/
 
 # IntelliJ related
 *.iml
-*.ipr   
+*.ipr
 *.iws
 .idea/
 
@@ -149,6 +149,19 @@ GoogleService-Info.plist
 /android/app/google-services.json
 /android/key.properties
 /android/.gradle
+/android/.kotlin
+/android/app/.cxx
+/android/build/
+
+# Keep important Android files
+!/android/app/src/
+!/android/app/build.gradle
+!/android/build.gradle
+!/android/gradle/wrapper/
+!/android/gradle/wrapper/gradle-wrapper.jar
+!/android/gradle/wrapper/gradle-wrapper.properties
+!/android/gradle.properties
+!/android/settings.gradle.kts
 
 # iOS specific
 /ios/Runner/GoogleService-Info.plist

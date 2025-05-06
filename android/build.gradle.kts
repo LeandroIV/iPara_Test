@@ -18,3 +18,5 @@ buildscript {
         classpath("com.google.gms:google-services:4.3.10")
     }
 }
+
+// Java version settings moved to app/build.gradle.kts
