@@ -153,6 +153,10 @@ GoogleService-Info.plist
 /android/app/.cxx
 /android/build/
 
+# APK files
+*.apk
+iPara_app_release.apk
+
 # Keep important Android files
 !/android/app/src/
 !/android/app/build.gradle
