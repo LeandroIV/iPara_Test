@@ -5,10 +5,12 @@ import '../../widgets/home_map_widget.dart';
 import '../../services/route_service.dart';
 import '../../models/route_model.dart';
 import '../edit_profile_screen.dart';
+import '../notification_settings_screen.dart';
 import 'dart:async';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'vehicle_maintenance_screen.dart';
 
 class DriverHomeScreen extends StatefulWidget {
   const DriverHomeScreen({super.key});
@@ -850,6 +852,21 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
                                     },
                                   ),
                                   _buildDrawerItem(
+                                    icon: Icons.build,
+                                    title: 'Vehicle Maintenance',
+                                    onTap: () {
+                                      _toggleDrawer();
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder:
+                                              (context) =>
+                                                  const VehicleMaintenanceScreen(),
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                  _buildDrawerItem(
                                     icon: Icons.person,
                                     title: 'Account',
                                     onTap: () {
@@ -870,6 +887,21 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
                                     onTap: () {
                                       _toggleDrawer();
                                       // TODO: Navigate to settings
+                                    },
+                                  ),
+                                  _buildDrawerItem(
+                                    icon: Icons.notifications_active,
+                                    title: 'Notification Settings',
+                                    onTap: () {
+                                      _toggleDrawer();
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder:
+                                              (context) =>
+                                                  const NotificationSettingsScreen(),
+                                        ),
+                                      );
                                     },
                                   ),
                                   _buildDrawerItem(

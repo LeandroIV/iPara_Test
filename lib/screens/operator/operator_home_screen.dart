@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import '../../models/user_role.dart';
 import '../../services/user_service.dart';
 import '../edit_profile_screen.dart';
+import '../notification_settings_screen.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'vehicle_management_screen.dart';
 
 class OperatorHomeScreen extends StatefulWidget {
   const OperatorHomeScreen({super.key});
@@ -602,7 +604,14 @@ class _OperatorHomeScreenState extends State<OperatorHomeScreen>
                                     title: 'Vehicles',
                                     onTap: () {
                                       _toggleDrawer();
-                                      // TODO: Navigate to vehicles
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder:
+                                              (context) =>
+                                                  const VehicleManagementScreen(),
+                                        ),
+                                      );
                                     },
                                   ),
                                   _buildDrawerItem(
@@ -653,6 +662,21 @@ class _OperatorHomeScreenState extends State<OperatorHomeScreen>
                                     },
                                   ),
                                   _buildDrawerItem(
+                                    icon: Icons.notifications_active,
+                                    title: 'Notification Settings',
+                                    onTap: () {
+                                      _toggleDrawer();
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder:
+                                              (context) =>
+                                                  const NotificationSettingsScreen(),
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                  _buildDrawerItem(
                                     icon: Icons.help,
                                     title: 'Help & Support',
                                     onTap: () {
@@ -700,12 +724,80 @@ class _OperatorHomeScreenState extends State<OperatorHomeScreen>
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton(
+      floatingActionButton: FloatingActionButton.extended(
         onPressed: () {
-          // Add new driver or vehicle
+          // Show options to add driver or vehicle
+          showModalBottomSheet(
+            context: context,
+            backgroundColor: Colors.black87,
+            shape: const RoundedRectangleBorder(
+              borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+            ),
+            builder:
+                (context) => Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      ListTile(
+                        leading: const Icon(
+                          Icons.person_add,
+                          color: Colors.green,
+                        ),
+                        title: const Text(
+                          'Add Driver',
+                          style: TextStyle(color: Colors.white),
+                        ),
+                        onTap: () {
+                          Navigator.pop(context);
+                          // TODO: Navigate to add driver screen
+                        },
+                      ),
+                      ListTile(
+                        leading: const Icon(
+                          Icons.directions_car,
+                          color: Colors.green,
+                        ),
+                        title: const Text(
+                          'Add Vehicle',
+                          style: TextStyle(color: Colors.white),
+                        ),
+                        onTap: () {
+                          Navigator.pop(context);
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder:
+                                  (context) => const VehicleManagementScreen(),
+                            ),
+                          );
+                        },
+                      ),
+                      ListTile(
+                        leading: const Icon(Icons.build, color: Colors.green),
+                        title: const Text(
+                          'Vehicle Maintenance',
+                          style: TextStyle(color: Colors.white),
+                        ),
+                        onTap: () {
+                          Navigator.pop(context);
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder:
+                                  (context) => const VehicleManagementScreen(),
+                            ),
+                          );
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+          );
         },
         backgroundColor: Colors.green,
-        child: Icon(Icons.add),
+        icon: const Icon(Icons.add),
+        label: const Text('Add'),
       ),
     );
   }

@@ -1,0 +1,42 @@
+@echo off
+echo iPara Release APK Builder
+echo =======================
+echo.
+echo This script will build a release APK that you can share with others.
+echo.
+
+echo Step 1: Cleaning the project...
+flutter clean
+if %ERRORLEVEL% neq 0 (
+    echo Error cleaning project.
+    pause
+    exit /b 1
+)
+
+echo.
+echo Step 2: Getting dependencies...
+flutter pub get
+if %ERRORLEVEL% neq 0 (
+    echo Error getting dependencies.
+    pause
+    exit /b 1
+)
+
+echo.
+echo Step 3: Building release APK...
+flutter build apk --release
+if %ERRORLEVEL% neq 0 (
+    echo Error building release APK.
+    pause
+    exit /b 1
+)
+
+echo.
+echo Release APK built successfully!
+echo.
+echo You can find the APK at:
+echo build\app\outputs\flutter-apk\app-release.apk
+echo.
+echo Copy this file to share with others.
+echo.
+pause

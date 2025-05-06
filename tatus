@@ -1,0 +1,85 @@
+[1mdiff --git a/lib/main.dart b/lib/main.dart[m
+[1mindex ce6873b..3749a25 100644[m
+[1m--- a/lib/main.dart[m
+[1m+++ b/lib/main.dart[m
+[36m@@ -1,5 +1,6 @@[m
+ import 'package:flutter/material.dart';[m
+ import 'package:flutter/foundation.dart';[m
+[32m+[m[32mimport 'dart:async'; // Import for TimeoutException[m
+ import 'package:firebase_core/firebase_core.dart';[m
+ import 'package:firebase_auth/firebase_auth.dart';[m
+ import 'package:cloud_firestore/cloud_firestore.dart';[m
+[36m@@ -12,14 +13,55 @@[m [mimport 'screens/commuter/commuter_home_screen.dart';[m
+ import 'screens/driver/driver_home_screen.dart';[m
+ import 'screens/operator/operator_home_screen.dart';[m
+ import 'services/user_service.dart';[m
+[32m+[m[32mimport 'services/notification_service.dart';[m
+ import 'models/user_role.dart';[m
+ [m
+ final FirebaseFirestore firestore = FirebaseFirestore.instance;[m
+ final FirebaseAuth auth = FirebaseAuth.instance;[m
+ [m
+[32m+[m[32m// Global navigator key[m
+[32m+[m[32mfinal GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();[m
+[32m+[m
+ void main() async {[m
+   WidgetsFlutterBinding.ensureInitialized();[m
+[31m-  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);[m
+[32m+[m
+[32m+[m[32m  print('App starting...');[m
+[32m+[m
+[32m+[m[32m  try {[m
+[32m+[m[32m    // Initialize Firebase with timeout[m
+[32m+[m[32m    print('Initializing Firebase...');[m
+[32m+[m[32m    await Firebase.initializeApp([m
+[32m+[m[32m      options: DefaultFirebaseOptions.currentPlatform,[m
+[32m+[m[32m    ).timeout([m
+[32m+[m[32m      Duration(seconds: 10),[m
+[32m+[m[32m      onTimeout: () {[m
+[32m+[m[32m        print('Firebase initialization timed out');[m
+[32m+[m[32m        throw TimeoutException('Firebase initialization timed out');[m
+[32m+[m[32m      },[m
+[32m+[m[32m    );[m
+[32m+[m[32m    print('Firebase initialized successfully');[m
+[32m+[m[32m  } catch (e) {[m
+[32m+[m[32m    print('Firebase initialization error: $e');[m
+[32m+[m[32m    // Continue anyway to show the app[m
+[32m+[m[32m  }[m
+[32m+[m
+[32m+[m[32m  try {[m
+[32m+[m[32m    // Initialize notification service with timeout[m
+[32m+[m[32m    print('Initializing notification service...');[m
+[32m+[m[32m    await NotificationService().initialize().timeout([m
+[32m+[m[32m      Duration(seconds: 5),[m
+[32m+[m[32m      onTimeout: () {[m
+[32m+[m[32m        print('Notification service initialization timed out');[m
+[32m+[m[32m        throw TimeoutException('Notification service initialization timed out');[m
+[32m+[m[32m      },[m
+[32m+[m[32m    );[m
+[32m+[m[32m    print('Notification service initialized successfully');[m
+[32m+[m[32m  } catch (e) {[m
+[32m+[m[32m    print('Notification service initialization error: $e');[m
+[32m+[m[32m    // Continue anyway to show the app[m
+[32m+[m[32m  }[m
+[32m+[m
+[32m+[m[32m  print('Starting app...');[m
+   runApp(const MyApp());[m
+ }[m
+ [m
+[36m@@ -31,6 +73,7 @@[m [mclass MyApp extends StatelessWidget {[m
+     return MaterialApp([m
+       title: 'iPara',[m
+       debugShowCheckedModeBanner: false,[m
+[32m+[m[32m      navigatorKey: navigatorKey,[m
+       theme: ThemeData([m
+         useMaterial3: true,[m
+         colorScheme: ColorScheme.fromSeed([m
+[36m@@ -50,7 +93,7 @@[m [mclass MyApp extends StatelessWidget {[m
+         ),[m
+         inputDecorationTheme: InputDecorationTheme([m
+           filled: true,[m
+[31m-          fillColor: Colors.white.withOpacity(0.1),[m
+[32m+[m[32m          fillColor: Colors.white.withAlpha(25),[m
+           labelStyle: const TextStyle(color: Colors.white70),[m
+           prefixIconColor: Colors.amber,[m
+           enabledBorder: OutlineInputBorder([m

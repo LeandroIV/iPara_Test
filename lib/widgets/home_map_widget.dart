@@ -2,13 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:permission_handler/permission_handler.dart' as permission;
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart'
+    show kIsWeb, defaultTargetPlatform, TargetPlatform;
 import 'dart:async';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-import 'dart:js' as js;
-import 'dart:html' as html;
-import 'dart:ui' as ui;
 import 'package:flutter_polyline_points/flutter_polyline_points.dart';
 import 'package:location/location.dart' as location_pkg;
 import '../config/api_keys.dart';
@@ -40,9 +38,6 @@ class HomeMapWidgetState extends State<HomeMapWidget> {
   final Map<PolylineId, Polyline> _polylines = {};
   StreamSubscription<Position>? _positionStreamSubscription;
   Timer? _debounceTimer;
-  dynamic _placesService;
-  bool _isPlacesApiInitialized = false;
-  Timer? _placesApiCheckTimer;
   List<dynamic> _searchResults = [];
   List<LatLng> _routePoints = [];
   final String _googleApiKey = googleApiKey; // Use the consistent API key
@@ -58,71 +53,8 @@ class HomeMapWidgetState extends State<HomeMapWidget> {
   void initState() {
     super.initState();
     _initializeLocation();
-    if (kIsWeb) {
-      _initializePlacesApi();
-    }
-  }
-
-  void _initializePlacesApi() {
-    // Skip initialization if we're not on web
-    if (!kIsWeb) return;
-
-    try {
-      // Create a hidden div for the map if it doesn't exist
-      var mapDiv = html.document.getElementById('map');
-      if (mapDiv == null) {
-        mapDiv =
-            html.DivElement()
-              ..id = 'map'
-              ..style.visibility = 'hidden'
-              ..style.height = '0px'
-              ..style.width = '0px';
-        html.document.body!.children.add(mapDiv);
-      }
-
-      // Start checking for Places API initialization
-      _placesApiCheckTimer?.cancel();
-      _placesApiCheckTimer = Timer.periodic(const Duration(milliseconds: 300), (
-        timer,
-      ) {
-        if (!mounted) {
-          timer.cancel();
-          return;
-        }
-
-        try {
-          if (js.context.hasProperty('google') &&
-              js.context['google'].hasProperty('maps') &&
-              js.context['google']['maps'].hasProperty('places')) {
-            final maps = js.context['google']['maps'];
-            final placesService = js.JsObject(maps['places']['PlacesService'], [
-              mapDiv,
-            ]);
-
-            if (mounted) {
-              setState(() {
-                _placesService = placesService;
-                _isPlacesApiInitialized = true;
-              });
-            }
-
-            print('Places API initialized successfully');
-            timer.cancel();
-          }
-        } catch (e) {
-          print('Waiting for Places API initialization: $e');
-
-          // Cancel the timer after several attempts to avoid infinite checking
-          if (timer.tick > 20) {
-            // After about 6 seconds
-            print('Places API initialization timed out');
-            timer.cancel();
-          }
-        }
-      });
-    } catch (e) {
-      print('Error setting up Places API initialization: $e');
-    }
+    // For Android/iOS, ensure the Google Maps services are initialized
+    _checkGooglePlayServices();
   }
 
   @override
@@ -131,7 +63,6 @@ class HomeMapWidgetState extends State<HomeMapWidget> {
     _positionStreamSubscription?.cancel();
     // Cancel timers before disposing controller
     _debounceTimer?.cancel();
-    _placesApiCheckTimer?.cancel();
     // Safely dispose map controller
     if (_mapController != null) {
       try {
@@ -197,11 +128,6 @@ class HomeMapWidgetState extends State<HomeMapWidget> {
 
   // Method to get directions from the Google Directions API
   Future<List<LatLng>> _getDirections(LatLng origin, LatLng destination) async {
-    if (kIsWeb) {
-      // For web, use the JS DirectionsService to avoid CORS issues
-      return await _getDirectionsWeb(origin, destination);
-    }
-
     // For mobile, use the HTTP API
     final String url =
         'https://maps.googleapis.com/maps/api/directions/json?'
@@ -247,122 +173,6 @@ class HomeMapWidgetState extends State<HomeMapWidget> {
       // Return direct line as fallback
       return [origin, destination];
     }
-  }
-
-  // Get lat/lng values properly from JavaScript objects
-  dynamic _getLatLngValue(dynamic jsObject, String property) {
-    if (jsObject is js.JsObject) {
-      // Check if the property is a method that needs to be called
-      if (jsObject[property] is js.JsFunction) {
-        return jsObject.callMethod(property);
-      } else {
-        return jsObject[property];
-      }
-    }
-    return 0.0; // Fallback
-  }
-
-  // Web-specific implementation using Google Maps JS API to avoid CORS issues
-  Future<List<LatLng>> _getDirectionsWeb(
-    LatLng origin,
-    LatLng destination,
-  ) async {
-    final completer = Completer<List<LatLng>>();
-
-    try {
-      // Wait for Maps API to be fully loaded
-      if (!js.context.hasProperty('google') ||
-          !js.context['google'].hasProperty('maps') ||
-          !js.context['google']['maps'].hasProperty('DirectionsService')) {
-        print('Waiting for Google Maps API to initialize...');
-        await Future.delayed(const Duration(milliseconds: 500));
-        // If still not loaded, fall back to direct line
-        if (!js.context.hasProperty('google') ||
-            !js.context['google'].hasProperty('maps') ||
-            !js.context['google']['maps'].hasProperty('DirectionsService')) {
-          print('Google Maps API not loaded. Using fallback.');
-          return [origin, destination];
-        }
-      }
-
-      final directionsService = js.JsObject(
-        js.context['google']['maps']['DirectionsService'],
-      );
-
-      final request = js.JsObject.jsify({
-        'origin': {'lat': origin.latitude, 'lng': origin.longitude},
-        'destination': {
-          'lat': destination.latitude,
-          'lng': destination.longitude,
-        },
-        'travelMode': 'DRIVING',
-      });
-
-      print('Requesting directions via JavaScript API...');
-      directionsService.callMethod('route', [
-        request,
-        (result, status) {
-          if (status == 'OK') {
-            try {
-              print('Got successful directions response');
-              // Create coordinates manually from the route path
-              final List<LatLng> polylineCoordinates = [];
-
-              // Get route overview path for a smoother line
-              final overviewPath = result['routes'][0]['overview_path'];
-              if (overviewPath != null) {
-                print('Using overview_path with ${overviewPath.length} points');
-                for (var i = 0; i < overviewPath.length; i++) {
-                  final point = overviewPath[i];
-                  final lat = _getLatLngValue(point, 'lat');
-                  final lng = _getLatLngValue(point, 'lng');
-                  polylineCoordinates.add(LatLng(lat, lng));
-                }
-              } else {
-                // Fallback to using legs and steps
-                print('Falling back to legs and steps');
-                final legs = result['routes'][0]['legs'];
-                for (var i = 0; i < legs.length; i++) {
-                  final steps = legs[i]['steps'];
-                  for (var j = 0; j < steps.length; j++) {
-                    final startLoc = steps[j]['start_location'];
-                    final endLoc = steps[j]['end_location'];
-
-                    // Extract coordinates safely
-                    final startLat = _getLatLngValue(startLoc, 'lat');
-                    final startLng = _getLatLngValue(startLoc, 'lng');
-                    polylineCoordinates.add(LatLng(startLat, startLng));
-
-                    // If it's the last step of the last leg, add the end location too
-                    if (i == legs.length - 1 && j == steps.length - 1) {
-                      final endLat = _getLatLngValue(endLoc, 'lat');
-                      final endLng = _getLatLngValue(endLoc, 'lng');
-                      polylineCoordinates.add(LatLng(endLat, endLng));
-                    }
-                  }
-                }
-              }
-
-              print(
-                'Generated polyline with ${polylineCoordinates.length} points',
-              );
-              completer.complete(polylineCoordinates);
-            } catch (e) {
-              print('Error parsing directions result: $e');
-              completer.complete([origin, destination]);
-            }
-          } else {
-            print('Directions service failed: $status');
-            completer.complete([origin, destination]);
-          }
-        },
-      ]);
-    } catch (e) {
-      print('Error getting directions via JavaScript API: $e');
-      completer.complete([origin, destination]);
-    }
-
-    return completer.future;
   }
 
   // Method to display a predefined route
@@ -473,94 +283,19 @@ class HomeMapWidgetState extends State<HomeMapWidget> {
       return [];
     }
 
-    if (kIsWeb) {
-      if (!_isPlacesApiInitialized) {
-        print('Places API not initialized yet');
-        return [];
-      }
+    // Mobile implementation using HTTP request
+    try {
+      final position = _userLocation ?? const LatLng(8.4542, 124.6319);
 
+      // First try the Places API v1
       try {
-        final position = _userLocation ?? const LatLng(8.4542, 124.6319);
-        final maps = js.context['google']['maps'];
-
-        // Create the AutocompleteService instead of using PlacesService for text search
-        final autocompleteService = js.JsObject(
-          maps['places']['AutocompleteService'],
-        );
-
-        final request = js.JsObject.jsify({
-          'input': query,
-          'location': js.JsObject(maps['LatLng'], [
-            position.latitude,
-            position.longitude,
-          ]),
-          'radius': 50000, // 50km radius
-          'componentRestrictions': {'country': 'PH'},
-        });
-
-        // Create a completer to handle the async response
-        final completer = Completer<List<dynamic>>();
-        bool hasCompleted = false;
-
-        autocompleteService.callMethod('getPlacePredictions', [
-          request,
-          (predictions, status) {
-            if (!mounted || hasCompleted) {
-              if (!hasCompleted) {
-                hasCompleted = true;
-                completer.complete([]);
-              }
-              return;
-            }
-
-            if (status == maps['places']['PlacesServiceStatus']['OK'] &&
-                predictions != null) {
-              try {
-                List<dynamic> results = List.from(predictions);
-                if (mounted) {
-                  setState(() => _searchResults = results);
-                }
-                hasCompleted = true;
-                completer.complete(results);
-              } catch (e) {
-                print('Error processing place predictions: $e');
-                hasCompleted = true;
-                completer.complete([]);
-              }
-            } else {
-              print('Places API error: $status');
-              hasCompleted = true;
-              completer.complete([]);
-            }
-          },
-        ]);
-
-        // Set a timeout to avoid waiting forever
-        Timer(Duration(seconds: 10), () {
-          if (!hasCompleted) {
-            print('Places search timed out');
-            hasCompleted = true;
-            completer.complete([]);
-          }
-        });
-
-        return completer.future;
-      } catch (e) {
-        print('Error searching places: $e');
-        return [];
-      }
-    } else {
-      // Fallback to HTTP request for non-web platforms
-      try {
-        final position = _userLocation ?? const LatLng(8.4542, 124.6319);
-
         final response = await http.post(
           Uri.parse('https://places.googleapis.com/v1/places:searchText'),
           headers: {
             'Content-Type': 'application/json',
             'X-Goog-Api-Key': googleApiKey,
             'X-Goog-FieldMask':
-                'places.displayName,places.formattedAddress,places.location',
+                'places.id,places.displayName,places.formattedAddress,places.location',
           },
           body: jsonEncode({
             'textQuery': query,
@@ -582,22 +317,65 @@ class HomeMapWidgetState extends State<HomeMapWidget> {
 
         if (response.statusCode == 200) {
           final data = json.decode(response.body);
-          if (data['places'] != null) {
-            final results = data['places'];
-            if (mounted) {
-              setState(() => _searchResults = results);
+          if (data['places'] != null && data['places'].isNotEmpty) {
+            // Format the results to match the expected structure in the UI
+            final List<dynamic> formattedResults = [];
+            for (var place in data['places']) {
+              formattedResults.add({
+                'place_id': place['id'],
+                'description': place['formattedAddress'],
+                'structured_formatting': {
+                  'main_text': place['displayName']['text'],
+                  'secondary_text': place['formattedAddress'],
+                },
+              });
             }
-            return results;
+
+            if (mounted) {
+              setState(() => _searchResults = formattedResults);
+            }
+
+            print('Formatted search results: $formattedResults');
+            return formattedResults;
           }
-        } else {
-          print('Places API HTTP error: ${response.statusCode}');
-          print('Response: ${response.body}');
         }
-        return [];
       } catch (e) {
-        print('Error searching places: $e');
-        return [];
+        print(
+          'Error with Places API v1: $e, falling back to Places Autocomplete API',
+        );
       }
+
+      // Fallback to the Places Autocomplete API
+      final autocompleteResponse = await http.get(
+        Uri.parse(
+          'https://maps.googleapis.com/maps/api/place/autocomplete/json?'
+          'input=$query&location=${position.latitude},${position.longitude}'
+          '&radius=50000&key=$googleApiKey',
+        ),
+      );
+
+      if (!mounted) return [];
+
+      if (autocompleteResponse.statusCode == 200) {
+        final data = json.decode(autocompleteResponse.body);
+        if (data['status'] == 'OK' && data['predictions'] != null) {
+          final predictions = data['predictions'];
+          if (mounted) {
+            setState(() => _searchResults = predictions);
+          }
+
+          print('Autocomplete search results: $predictions');
+          return predictions;
+        }
+      }
+
+      print(
+        'All search APIs failed. HTTP error: ${autocompleteResponse.statusCode}',
+      );
+      return [];
+    } catch (e) {
+      print('Error searching places: $e');
+      return [];
     }
   }
 
@@ -605,87 +383,8 @@ class HomeMapWidgetState extends State<HomeMapWidget> {
   Future<bool> getPlaceDetails(String placeId) async {
     if (!mounted || _mapController == null) return false;
 
-    if (kIsWeb) {
-      if (!_isPlacesApiInitialized) {
-        print('Places API not initialized yet');
-        return false;
-      }
-
-      try {
-        final maps = js.context['google']['maps'];
-        final request = js.JsObject.jsify({
-          'placeId': placeId,
-          'fields': ['name', 'formatted_address', 'geometry', 'place_id'],
-        });
-
-        // Create a completer to handle the async response
-        final completer = Completer<bool>();
-
-        _placesService.callMethod('getDetails', [
-          request,
-          (place, status) {
-            if (!mounted) {
-              completer.complete(false);
-              return;
-            }
-
-            if (status == maps['places']['PlacesServiceStatus']['OK']) {
-              try {
-                final location = place['geometry']['location'];
-                final lat = location.callMethod('lat');
-                final lng = location.callMethod('lng');
-                final name = place['name'];
-
-                // Only remove the destination marker, not all markers
-                _markers.removeWhere(
-                  (marker) => marker.markerId.value == 'selected_location',
-                );
-
-                // Add the destination marker
-                final destinationLocation = LatLng(lat, lng);
-                _markers.add(
-                  Marker(
-                    markerId: const MarkerId('selected_location'),
-                    position: destinationLocation,
-                    infoWindow: InfoWindow(title: name),
-                    icon: BitmapDescriptor.defaultMarkerWithHue(
-                      BitmapDescriptor.hueGreen,
-                    ),
-                  ),
-                );
-
-                if (mounted && _mapController != null) {
-                  _mapController?.animateCamera(
-                    CameraUpdate.newCameraPosition(
-                      CameraPosition(target: destinationLocation, zoom: 15),
-                    ),
-                  );
-
-                  // Show route from user location to destination if user location is available and visible
-                  if (_userLocation != null && widget.showUserLocation) {
-                    showRoute(_userLocation!, destinationLocation);
-                  }
-                }
-
-                widget.onDestinationSelected(name);
-                completer.complete(true);
-              } catch (e) {
-                print('Error processing place details: $e');
-                completer.complete(false);
-              }
-            } else {
-              print('Error getting place details: $status');
-              completer.complete(false);
-            }
-          },
-        ]);
-
-        return completer.future;
-      } catch (e) {
-        print('Error getting place details: $e');
-        return false;
-      }
-    } else {
+    try {
+      // First try the Places API v1
       try {
         final response = await http.get(
           Uri.parse(
@@ -704,46 +403,84 @@ class HomeMapWidgetState extends State<HomeMapWidget> {
           final lng = location['longitude'];
           final name = place['displayName']['text'];
 
-          // Only remove the destination marker, not all markers
-          _markers.removeWhere(
-            (marker) => marker.markerId.value == 'selected_location',
-          );
-
-          // Add the destination marker
-          final destinationLocation = LatLng(lat, lng);
-          _markers.add(
-            Marker(
-              markerId: const MarkerId('selected_location'),
-              position: destinationLocation,
-              infoWindow: InfoWindow(title: name),
-              icon: BitmapDescriptor.defaultMarkerWithHue(
-                BitmapDescriptor.hueGreen,
-              ),
-            ),
-          );
-
-          if (mounted && _mapController != null) {
-            await _mapController?.animateCamera(
-              CameraUpdate.newCameraPosition(
-                CameraPosition(target: destinationLocation, zoom: 15),
-              ),
-            );
-
-            // Show route from user location to destination if user location is available and visible
-            if (_userLocation != null && widget.showUserLocation) {
-              await showRoute(_userLocation!, destinationLocation);
-            }
-          }
-
-          widget.onDestinationSelected(name);
-          return true;
+          return _handlePlaceLocation(lat, lng, name);
         }
-        return false;
       } catch (e) {
-        print('Error getting place details: $e');
-        return false;
+        print(
+          'Error with Places API v1 details: $e, falling back to Places Details API',
+        );
+      }
+
+      // Fallback to the Places Details API
+      final detailsResponse = await http.get(
+        Uri.parse(
+          'https://maps.googleapis.com/maps/api/place/details/json'
+          '?place_id=$placeId'
+          '&fields=name,geometry,formatted_address'
+          '&key=$googleApiKey',
+        ),
+      );
+
+      if (!mounted) return false;
+
+      if (detailsResponse.statusCode == 200) {
+        final data = json.decode(detailsResponse.body);
+        if (data['status'] == 'OK' && data['result'] != null) {
+          final result = data['result'];
+          final location = result['geometry']['location'];
+          final lat = location['lat'];
+          final lng = location['lng'];
+          final name = result['name'];
+
+          return _handlePlaceLocation(lat, lng, name);
+        }
+      }
+
+      print(
+        'All place details APIs failed. HTTP error: ${detailsResponse.statusCode}',
+      );
+      return false;
+    } catch (e) {
+      print('Error getting place details: $e');
+      return false;
+    }
+  }
+
+  // Helper method to handle place location
+  Future<bool> _handlePlaceLocation(double lat, double lng, String name) async {
+    if (!mounted || _mapController == null) return false;
+
+    // Only remove the destination marker, not all markers
+    _markers.removeWhere(
+      (marker) => marker.markerId.value == 'selected_location',
+    );
+
+    // Add the destination marker
+    final destinationLocation = LatLng(lat, lng);
+    _markers.add(
+      Marker(
+        markerId: const MarkerId('selected_location'),
+        position: destinationLocation,
+        infoWindow: InfoWindow(title: name),
+        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen),
+      ),
+    );
+
+    if (mounted && _mapController != null) {
+      await _mapController?.animateCamera(
+        CameraUpdate.newCameraPosition(
+          CameraPosition(target: destinationLocation, zoom: 15),
+        ),
+      );
+
+      // Show route from user location to destination if user location is available and visible
+      if (_userLocation != null && widget.showUserLocation) {
+        await showRoute(_userLocation!, destinationLocation);
       }
     }
+
+    widget.onDestinationSelected(name);
+    return true;
   }
 
   Future<void> _initializeLocation() async {
@@ -963,21 +700,18 @@ class HomeMapWidgetState extends State<HomeMapWidget> {
       builder:
           (context) => AlertDialog(
             title: const Text('Location Permission Required'),
-            content: Text(
-              kIsWeb
-                  ? 'Please enable location services in your browser settings to use this feature.'
-                  : 'Please enable location services to use this feature.',
+            content: const Text(
+              'Please enable location services to use this feature.',
             ),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(context),
                 child: const Text('OK'),
               ),
-              if (!kIsWeb)
-                TextButton(
-                  onPressed: () => permission.openAppSettings(),
-                  child: const Text('Open Settings'),
-                ),
+              TextButton(
+                onPressed: () => permission.openAppSettings(),
+                child: const Text('Open Settings'),
+              ),
             ],
           ),
     );
@@ -1032,6 +766,30 @@ class HomeMapWidgetState extends State<HomeMapWidget> {
         (marker) => marker.markerId.value == 'selected_location',
       );
     });
+  }
+
+  // Method to verify Google Play Services are available on Android
+  Future<void> _checkGooglePlayServices() async {
+    if (defaultTargetPlatform == TargetPlatform.android) {
+      try {
+        print('Checking Google Play Services availability...');
+        await Geolocator.isLocationServiceEnabled(); // This will indirectly check Google Play Services
+        print('Google Play Services are available');
+      } catch (e) {
+        print('Error verifying Google Play Services: $e');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Google Play Services not available. Maps functionality may be limited.',
+              ),
+              backgroundColor: Colors.red,
+              duration: Duration(seconds: 5),
+            ),
+          );
+        }
+      }
+    }
   }
 
   @override
