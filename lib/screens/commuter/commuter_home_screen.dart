@@ -19,7 +19,7 @@ class CommuterHomeScreen extends StatefulWidget {
 
 class _CommuterHomeScreenState extends State<CommuterHomeScreen>
     with SingleTickerProviderStateMixin {
-  String selectedPUVType = 'Bus';
+  String? selectedPUVType = 'Bus';
   bool isDrawerOpen = false;
   late AnimationController _drawerController;
   late Animation<double> _drawerAnimation;
@@ -88,10 +88,13 @@ class _CommuterHomeScreenState extends State<CommuterHomeScreen>
 
   // Filter routes based on selected PUV type
   List<PUVRoute> get filteredRoutes {
+    if (selectedPUVType == null) {
+      return [];
+    }
     return _availableRoutes
         .where(
           (route) =>
-              route.puvType.toLowerCase() == selectedPUVType.toLowerCase(),
+              route.puvType.toLowerCase() == selectedPUVType!.toLowerCase(),
         )
         .toList();
   }
@@ -150,6 +153,26 @@ class _CommuterHomeScreenState extends State<CommuterHomeScreen>
       // Use the map widget's search functionality
       if (_mapKey.currentState != null) {
         final results = await _mapKey.currentState!.searchPlaces(query);
+
+        // Debug: Print search results information
+        if (results.isNotEmpty) {
+          print('Search results found: ${results.length}');
+          print('First result: ${results[0]}');
+
+          // Check if the results have the expected structure
+          final mainText =
+              results[0]['structured_formatting']?['main_text'] ??
+              results[0]['description'] ??
+              'Unknown location';
+          final secondaryText =
+              results[0]['structured_formatting']?['secondary_text'] ?? '';
+
+          print('Main text: $mainText');
+          print('Secondary text: $secondaryText');
+        } else {
+          print('No search results found for query: $query');
+        }
+
         setState(() {
           _googlePlacesResults = results;
           _isLoadingPlaces = false;
@@ -171,6 +194,7 @@ class _CommuterHomeScreenState extends State<CommuterHomeScreen>
       await _mapKey.currentState!.getPlaceDetails(placeId);
       setState(() {
         _isSearching = false;
+        _googlePlacesResults = []; // Clear results after selection
       });
     }
   }
@@ -267,27 +291,27 @@ class _CommuterHomeScreenState extends State<CommuterHomeScreen>
     }
   }
 
-  // Helper method to build a route card
+  // Helper method to build a route card (more compact)
   Widget _buildRouteCard(PUVRoute route, bool isSelected) {
     return Padding(
-      padding: const EdgeInsets.only(right: 12.0),
+      padding: const EdgeInsets.only(right: 8.0),
       child: InkWell(
         onTap: () {
           _displayRoute(route);
         },
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(8),
         child: Container(
-          width: 170,
-          padding: const EdgeInsets.all(12),
+          width: 140, // Reduced width
+          padding: const EdgeInsets.all(8), // Reduced padding
           decoration: BoxDecoration(
             color:
                 isSelected
-                    ? Color(route.colorValue).withOpacity(0.3)
-                    : Colors.white.withOpacity(0.1),
-            borderRadius: BorderRadius.circular(12),
+                    ? Color(route.colorValue).withAlpha(75)
+                    : Colors.white.withAlpha(25),
+            borderRadius: BorderRadius.circular(8),
             border:
                 isSelected
-                    ? Border.all(color: Color(route.colorValue), width: 2)
+                    ? Border.all(color: Color(route.colorValue), width: 1.5)
                     : null,
           ),
           child: Column(
@@ -298,53 +322,54 @@ class _CommuterHomeScreenState extends State<CommuterHomeScreen>
                 children: [
                   Container(
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 6,
+                      horizontal: 4,
                       vertical: 2,
                     ),
                     decoration: BoxDecoration(
                       color: Color(route.colorValue),
-                      borderRadius: BorderRadius.circular(4),
+                      borderRadius: BorderRadius.circular(3),
                     ),
                     child: Text(
                       route.routeCode,
                       style: const TextStyle(
                         color: Colors.white,
                         fontWeight: FontWeight.bold,
-                        fontSize: 12,
+                        fontSize: 10,
                       ),
                     ),
                   ),
-                  const SizedBox(width: 6),
+                  const SizedBox(width: 4),
                   Text(
                     '₱${route.farePrice.toStringAsFixed(0)}',
                     style: const TextStyle(
                       color: Colors.white,
                       fontWeight: FontWeight.bold,
+                      fontSize: 11,
                     ),
                   ),
                 ],
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 6),
               Expanded(
                 child: Text(
                   '${route.startPointName} to ${route.endPointName}',
-                  style: const TextStyle(color: Colors.white, fontSize: 12),
+                  style: const TextStyle(color: Colors.white, fontSize: 11),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
-              const SizedBox(height: 4),
+              const SizedBox(height: 2),
               Row(
                 children: [
                   const Icon(
                     Icons.access_time,
                     color: Colors.white70,
-                    size: 12,
+                    size: 10,
                   ),
-                  const SizedBox(width: 4),
+                  const SizedBox(width: 2),
                   Text(
                     '~${route.estimatedTravelTime} min',
-                    style: const TextStyle(color: Colors.white70, fontSize: 11),
+                    style: const TextStyle(color: Colors.white70, fontSize: 10),
                   ),
                 ],
               ),
@@ -430,58 +455,61 @@ class _CommuterHomeScreenState extends State<CommuterHomeScreen>
             child: SafeArea(
               child: Column(
                 children: [
-                  // Header with role indicator
+                  // Header with role indicator (more compact)
                   Padding(
-                    padding: const EdgeInsets.all(16.0),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8.0,
+                      vertical: 4.0,
+                    ),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         IconButton(
-                          icon: Icon(Icons.menu, color: Colors.white),
+                          icon: Icon(Icons.menu, color: Colors.white, size: 22),
+                          padding: EdgeInsets.zero,
+                          constraints: BoxConstraints(),
                           onPressed: _toggleDrawer,
                         ),
                         Flexible(
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Flexible(
-                                child: Container(
-                                  padding: EdgeInsets.symmetric(
-                                    horizontal: 12,
-                                    vertical: 6,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: Colors.amber.withOpacity(0.2),
-                                    borderRadius: BorderRadius.circular(16),
-                                  ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Icon(
-                                        UserRole.commuter.icon,
-                                        color: Colors.amber,
-                                        size: 16,
-                                      ),
-                                      SizedBox(width: 4),
-                                      Flexible(
-                                        child: Text(
-                                          'Commuter Mode',
-                                          style: TextStyle(
-                                            color: Colors.amber,
-                                            fontWeight: FontWeight.bold,
-                                          ),
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
+                          child: Container(
+                            padding: EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.amber.withAlpha(50),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  UserRole.commuter.icon,
+                                  color: Colors.amber,
+                                  size: 14,
                                 ),
-                              ),
-                            ],
+                                SizedBox(width: 4),
+                                Text(
+                                  'Commuter Mode',
+                                  style: TextStyle(
+                                    color: Colors.amber,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 12,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ],
+                            ),
                           ),
                         ),
                         IconButton(
-                          icon: Icon(Icons.person, color: Colors.white),
+                          icon: Icon(
+                            Icons.person,
+                            color: Colors.white,
+                            size: 22,
+                          ),
+                          padding: EdgeInsets.zero,
+                          constraints: BoxConstraints(),
                           onPressed: () {
                             Navigator.push(
                               context,
@@ -495,27 +523,34 @@ class _CommuterHomeScreenState extends State<CommuterHomeScreen>
                     ),
                   ),
 
-                  // Destination Search
+                  // Destination Search (more compact)
                   Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8.0,
+                      vertical: 4.0,
+                    ),
                     child: Container(
                       key: _searchBarKey,
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
+                        horizontal: 12,
                         vertical: 8,
                       ),
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.1),
+                        color: Colors.white.withAlpha(30),
                         borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: Colors.amber.withAlpha(100),
+                          width: 1,
+                        ),
                       ),
                       child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Row(
                             children: [
                               const Icon(
                                 Icons.location_searching,
                                 color: Colors.amber,
+                                size: 20,
                               ),
                               const SizedBox(width: 8),
                               Expanded(
@@ -565,7 +600,10 @@ class _CommuterHomeScreenState extends State<CommuterHomeScreen>
                                   icon: const Icon(
                                     Icons.close,
                                     color: Colors.white70,
+                                    size: 20,
                                   ),
+                                  padding: EdgeInsets.zero,
+                                  constraints: BoxConstraints(),
                                   onPressed: () {
                                     setState(() {
                                       _isSearching = false;
@@ -589,7 +627,10 @@ class _CommuterHomeScreenState extends State<CommuterHomeScreen>
                                   icon: const Icon(
                                     Icons.search,
                                     color: Colors.amber,
+                                    size: 20,
                                   ),
+                                  padding: EdgeInsets.zero,
+                                  constraints: BoxConstraints(),
                                   onPressed: () {
                                     setState(() {
                                       _isSearching = true;
@@ -598,57 +639,63 @@ class _CommuterHomeScreenState extends State<CommuterHomeScreen>
                                 ),
                             ],
                           ),
-                          // Loading indicator when searching (in column to avoid affecting layout)
+                          // Loading indicator when searching
                           if (_isSearching && _isLoadingPlaces)
                             Container(
-                              margin: const EdgeInsets.only(top: 8),
-                              child: const Center(
-                                child: CircularProgressIndicator(
-                                  color: Colors.amber,
-                                  strokeWidth: 2,
-                                ),
+                              margin: const EdgeInsets.only(top: 4),
+                              height: 2,
+                              child: const LinearProgressIndicator(
+                                color: Colors.amber,
+                                backgroundColor: Colors.transparent,
                               ),
                             ),
                         ],
                       ),
                     ),
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 8),
 
-                  // PUV Type Selection
+                  // PUV Type Selection (more compact)
                   Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                    padding: const EdgeInsets.symmetric(horizontal: 8.0),
                     child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text(
-                          'Select PUV Type',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
+                        const Padding(
+                          padding: EdgeInsets.only(left: 4.0),
+                          child: Text(
+                            'Select PUV Type',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                         ),
-                        const SizedBox(height: 16),
-                        Container(
+                        const SizedBox(height: 6),
+                        SizedBox(
                           width: double.infinity,
-                          alignment: Alignment.center,
+                          height: 70, // Fixed height
                           child: SingleChildScrollView(
                             scrollDirection: Axis.horizontal,
                             child: Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
                               children:
                                   puvCounts.entries.map((entry) {
                                     bool isSelected =
                                         selectedPUVType == entry.key;
                                     return Padding(
                                       padding: const EdgeInsets.only(
-                                        right: 12.0,
+                                        right: 8.0,
                                       ),
                                       child: ElevatedButton(
                                         onPressed: () {
                                           setState(() {
-                                            selectedPUVType = entry.key;
+                                            // Toggle selection if the same type is clicked again
+                                            if (selectedPUVType == entry.key) {
+                                              selectedPUVType = null;
+                                            } else {
+                                              selectedPUVType = entry.key;
+                                            }
 
                                             // Clear any selected route when changing PUV type
                                             _selectedRoute = null;
@@ -664,16 +711,14 @@ class _CommuterHomeScreenState extends State<CommuterHomeScreen>
                                           backgroundColor:
                                               isSelected
                                                   ? Colors.amber
-                                                  : Colors.white.withOpacity(
-                                                    0.1,
-                                                  ),
+                                                  : Colors.white.withAlpha(25),
                                           padding: const EdgeInsets.symmetric(
-                                            horizontal: 24,
-                                            vertical: 16,
+                                            horizontal: 16,
+                                            vertical: 8,
                                           ),
                                           shape: RoundedRectangleBorder(
                                             borderRadius: BorderRadius.circular(
-                                              12,
+                                              8,
                                             ),
                                           ),
                                         ),
@@ -688,9 +733,10 @@ class _CommuterHomeScreenState extends State<CommuterHomeScreen>
                                                         ? Colors.white
                                                         : Colors.white70,
                                                 fontWeight: FontWeight.bold,
+                                                fontSize: 13,
                                               ),
                                             ),
-                                            const SizedBox(height: 4),
+                                            const SizedBox(height: 2),
                                             Text(
                                               '${entry.value} available',
                                               style: TextStyle(
@@ -698,7 +744,7 @@ class _CommuterHomeScreenState extends State<CommuterHomeScreen>
                                                     isSelected
                                                         ? Colors.white70
                                                         : Colors.white54,
-                                                fontSize: 12,
+                                                fontSize: 11,
                                               ),
                                             ),
                                           ],
@@ -712,81 +758,94 @@ class _CommuterHomeScreenState extends State<CommuterHomeScreen>
                       ],
                     ),
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 8),
 
-                  // Available Routes Section (new)
-                  if (routes.isNotEmpty)
+                  // Available Routes Section (more compact)
+                  if (selectedPUVType != null && routes.isNotEmpty)
                     Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                      padding: const EdgeInsets.symmetric(horizontal: 8.0),
                       child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              const Text(
-                                'Available Routes',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              if (_selectedRoute != null)
-                                TextButton.icon(
-                                  icon: const Icon(
-                                    Icons.clear,
-                                    color: Colors.white70,
-                                    size: 16,
+                          Padding(
+                            padding: const EdgeInsets.only(
+                              left: 4.0,
+                              right: 4.0,
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                const Text(
+                                  'Available Routes',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.bold,
                                   ),
-                                  label: const Text(
-                                    'Clear Route',
-                                    style: TextStyle(color: Colors.white70),
-                                  ),
-                                  onPressed: _clearRoute,
                                 ),
-                            ],
+                                if (_selectedRoute != null)
+                                  GestureDetector(
+                                    onTap: _clearRoute,
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        const Icon(
+                                          Icons.clear,
+                                          color: Colors.white70,
+                                          size: 14,
+                                        ),
+                                        const SizedBox(width: 2),
+                                        const Text(
+                                          'Clear',
+                                          style: TextStyle(
+                                            color: Colors.white70,
+                                            fontSize: 12,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                              ],
+                            ),
                           ),
-                          const SizedBox(height: 8),
+                          const SizedBox(height: 6),
                           SizedBox(
-                            height: 120,
+                            height: 90, // Reduced height
                             width: double.infinity,
                             child:
                                 _isLoadingRoutes
                                     ? const Center(
                                       child: CircularProgressIndicator(
                                         color: Colors.amber,
+                                        strokeWidth: 2,
                                       ),
                                     )
-                                    : Center(
-                                      child: ListView.builder(
-                                        scrollDirection: Axis.horizontal,
-                                        shrinkWrap: true,
-                                        itemCount: routes.length,
-                                        itemBuilder: (context, index) {
-                                          final route = routes[index];
-                                          final isSelected =
-                                              _selectedRoute?.id == route.id;
-                                          return _buildRouteCard(
-                                            route,
-                                            isSelected,
-                                          );
-                                        },
-                                      ),
+                                    : ListView.builder(
+                                      scrollDirection: Axis.horizontal,
+                                      itemCount: routes.length,
+                                      itemBuilder: (context, index) {
+                                        final route = routes[index];
+                                        final isSelected =
+                                            _selectedRoute?.id == route.id;
+                                        return _buildRouteCard(
+                                          route,
+                                          isSelected,
+                                        );
+                                      },
                                     ),
                           ),
                         ],
                       ),
                     ),
 
-                  // Map Widget
+                  // Map Widget (expanded to take more space)
                   Expanded(
                     child: Stack(
                       children: [
                         // Map with rounded corners
                         ClipRRect(
                           borderRadius: const BorderRadius.vertical(
-                            top: Radius.circular(20),
+                            top: Radius.circular(16),
                           ),
                           child: HomeMapWidget(
                             key: _mapKey,
@@ -799,20 +858,20 @@ class _CommuterHomeScreenState extends State<CommuterHomeScreen>
                           ),
                         ),
 
-                        // Privacy toggle button (positioned at the bottom right of the map)
+                        // Privacy toggle button (positioned at the top left of the map)
                         Positioned(
-                          left: 16,
-                          top: 16,
+                          left: 12,
+                          top: 12,
                           child: Material(
                             elevation: 4,
-                            borderRadius: BorderRadius.circular(24),
+                            borderRadius: BorderRadius.circular(16),
                             child: Container(
                               decoration: BoxDecoration(
                                 color:
                                     _isLocationVisibleToDrivers
-                                        ? Colors.green.withOpacity(0.9)
-                                        : Colors.red.withOpacity(0.9),
-                                borderRadius: BorderRadius.circular(24),
+                                        ? Colors.green.withAlpha(230)
+                                        : Colors.red.withAlpha(230),
+                                borderRadius: BorderRadius.circular(16),
                               ),
                               child: Tooltip(
                                 message:
@@ -821,9 +880,9 @@ class _CommuterHomeScreenState extends State<CommuterHomeScreen>
                                         : 'Your location is hidden from drivers',
                                 child: InkWell(
                                   onTap: _toggleLocationVisibility,
-                                  borderRadius: BorderRadius.circular(24),
+                                  borderRadius: BorderRadius.circular(16),
                                   child: Padding(
-                                    padding: const EdgeInsets.all(8.0),
+                                    padding: const EdgeInsets.all(6.0),
                                     child: Row(
                                       mainAxisSize: MainAxisSize.min,
                                       children: [
@@ -832,7 +891,7 @@ class _CommuterHomeScreenState extends State<CommuterHomeScreen>
                                               ? Icons.visibility
                                               : Icons.visibility_off,
                                           color: Colors.white,
-                                          size: 20,
+                                          size: 16,
                                         ),
                                       ],
                                     ),
@@ -855,7 +914,7 @@ class _CommuterHomeScreenState extends State<CommuterHomeScreen>
             Positioned.fill(
               child: GestureDetector(
                 onTap: _toggleDrawer,
-                child: Container(color: Colors.black.withOpacity(0.3)),
+                child: Container(color: Colors.black.withAlpha(75)),
               ),
             ),
 
@@ -879,7 +938,7 @@ class _CommuterHomeScreenState extends State<CommuterHomeScreen>
                         color: Colors.black,
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.amber.withOpacity(0.3),
+                            color: Colors.amber.withAlpha(75),
                             blurRadius: 10,
                           ),
                         ],
@@ -891,7 +950,7 @@ class _CommuterHomeScreenState extends State<CommuterHomeScreen>
                             Container(
                               padding: EdgeInsets.all(16),
                               decoration: BoxDecoration(
-                                color: Colors.amber.withOpacity(0.2),
+                                color: Colors.amber.withAlpha(50),
                               ),
                               child: Row(
                                 children: [
@@ -1050,49 +1109,167 @@ class _CommuterHomeScreenState extends State<CommuterHomeScreen>
             },
           ),
 
-          // Suggestions Overlay
+          // Enhanced Suggestions Overlay with improved visibility and contrast
           if (_isSearching && _googlePlacesResults.isNotEmpty)
             Positioned(
-              top: 130, // Adjust this value based on your UI
+              top: 190, // Increased to avoid overlapping search bar
               left: 16,
               right: 16,
               child: Material(
-                elevation: 8,
+                elevation: 10,
                 borderRadius: BorderRadius.circular(12),
-                color: const Color.fromARGB(255, 51, 51, 51).withOpacity(1),
+                color: Color.fromARGB(
+                  255,
+                  43,
+                  42,
+                  42,
+                ), // Dark gray to match search bar
                 child: Container(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.amber, width: 2),
+                    // Add a subtle shadow for depth
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withAlpha(50),
+                        blurRadius: 5.0,
+                        spreadRadius: 1.0,
+                      ),
+                    ],
+                  ),
                   constraints: BoxConstraints(
                     maxHeight: MediaQuery.of(context).size.height * 0.4,
                   ),
-                  child: ListView.builder(
-                    padding: EdgeInsets.zero,
-                    shrinkWrap: true,
-                    itemCount: _googlePlacesResults.length,
-                    itemBuilder: (context, index) {
-                      final place = _googlePlacesResults[index];
-                      return ListTile(
-                        leading: Icon(Icons.location_on, color: Colors.amber),
-                        title: Text(
-                          place['structured_formatting']?['main_text'] ??
-                              place['description'] ??
-                              '',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // Header with title
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(12.0),
+                        decoration: BoxDecoration(
+                          color: Colors.amber,
+                          borderRadius: BorderRadius.only(
+                            topLeft: Radius.circular(10),
+                            topRight: Radius.circular(10),
                           ),
                         ),
-                        subtitle: Text(
-                          place['structured_formatting']?['secondary_text'] ??
-                              '',
-                          style: TextStyle(color: Colors.white70),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
+                        child: Row(
+                          children: [
+                            Icon(Icons.search, color: Colors.black),
+                            SizedBox(width: 8),
+                            Text(
+                              'Suggested Locations',
+                              style: TextStyle(
+                                color: Colors.black,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 16,
+                              ),
+                            ),
+                          ],
                         ),
-                        onTap: () {
-                          _selectPlace(place);
-                        },
-                      );
-                    },
+                      ),
+                      // List of search results
+                      Flexible(
+                        child: ListView.separated(
+                          padding: EdgeInsets.zero,
+                          shrinkWrap: true,
+                          itemCount: _googlePlacesResults.length,
+                          separatorBuilder:
+                              (context, index) => Divider(
+                                height: 1,
+                                color:
+                                    Colors
+                                        .grey
+                                        .shade800, // Darker divider for dark theme
+                                indent: 56,
+                              ),
+                          itemBuilder: (context, index) {
+                            final place = _googlePlacesResults[index];
+                            final mainText =
+                                place['structured_formatting']?['main_text'] ??
+                                place['description'] ??
+                                'Unknown location';
+                            final secondaryText =
+                                place['structured_formatting']?['secondary_text'] ??
+                                '';
+
+                            return Material(
+                              color: Colors.transparent,
+                              child: InkWell(
+                                onTap: () {
+                                  _selectPlace(place);
+                                },
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 16.0,
+                                    vertical: 12.0,
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Container(
+                                        width: 40,
+                                        height: 40,
+                                        decoration: BoxDecoration(
+                                          color: Colors.amber.withAlpha(50),
+                                          shape: BoxShape.circle,
+                                        ),
+                                        child: Center(
+                                          child: Icon(
+                                            Icons.location_on,
+                                            color: Colors.amber.shade700,
+                                            size: 24,
+                                          ),
+                                        ),
+                                      ),
+                                      SizedBox(width: 16),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              mainText,
+                                              style: TextStyle(
+                                                color:
+                                                    Colors
+                                                        .white, // Changed to white for dark theme
+                                                fontWeight: FontWeight.bold,
+                                                fontSize: 14,
+                                              ),
+                                            ),
+                                            if (secondaryText.isNotEmpty)
+                                              Padding(
+                                                padding: const EdgeInsets.only(
+                                                  top: 4.0,
+                                                ),
+                                                child: Text(
+                                                  secondaryText,
+                                                  style: TextStyle(
+                                                    color:
+                                                        Colors
+                                                            .grey
+                                                            .shade300, // Lighter gray for dark theme
+                                                    fontSize: 12,
+                                                  ),
+                                                  maxLines: 2,
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
+                                                ),
+                                              ),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
