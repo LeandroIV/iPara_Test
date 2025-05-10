@@ -10,6 +10,10 @@ import 'dart:convert';
 import 'package:flutter_polyline_points/flutter_polyline_points.dart';
 import 'package:location/location.dart' as location_pkg;
 import '../config/api_keys.dart';
+import '../models/driver_location_model.dart';
+import '../models/commuter_location_model.dart';
+import '../services/location_service.dart';
+import '../utils/marker_generator.dart';
 
 // Consistent API key declaration at the top level
 const String googleApiKey = "AIzaSyDtm_kDatDOlKtvEMCA5lcVRFyTM6f6NNk";
@@ -18,12 +22,14 @@ class HomeMapWidget extends StatefulWidget {
   final Function(String) onDestinationSelected;
   final bool showUserLocation;
   final Function? onLocationPermissionGranted;
+  final Function(String?)? onPuvTypeSelected;
 
   const HomeMapWidget({
     super.key,
     required this.onDestinationSelected,
     this.showUserLocation = true,
     this.onLocationPermissionGranted,
+    this.onPuvTypeSelected,
   });
 
   @override
@@ -39,28 +45,62 @@ class HomeMapWidgetState extends State<HomeMapWidget> {
   StreamSubscription<Position>? _positionStreamSubscription;
   Timer? _debounceTimer;
   List<dynamic> _searchResults = [];
-  List<LatLng> _routePoints = [];
   final String _googleApiKey = googleApiKey; // Use the consistent API key
-  bool _showLoading = false;
-  bool _isLocationPermissionGranted = false;
-  location_pkg.LocationData? _locationData;
-  Map<String, dynamic>? _selectedPlaceDetails;
+
+  // Streams for real-time location updates
+  StreamSubscription<List<DriverLocation>>? _driversSubscription;
+  StreamSubscription<List<CommuterLocation>>? _commutersSubscription;
+
+  // Location service for getting nearby drivers/commuters
+  final LocationService _locationService = LocationService();
+
+  // Selected PUV type for filtering
+  String? _selectedPuvType;
+
+  // Flags for showing drivers and commuters
+  bool _showDrivers = false;
+  bool _showCommuters = false;
 
   // Make search functionality accessible from outside
   List<dynamic> get searchResults => _searchResults;
 
+  // Check if the map is ready
+  bool get isMapReady => _mapController != null;
+
   @override
   void initState() {
     super.initState();
-    _initializeLocation();
-    // For Android/iOS, ensure the Google Maps services are initialized
-    _checkGooglePlayServices();
+
+    // Delay map initialization slightly to ensure widget is fully mounted
+    Future.delayed(const Duration(milliseconds: 300), () {
+      if (mounted) {
+        initializeLocation();
+        // For Android/iOS, ensure the Google Maps services are initialized
+        _checkGooglePlayServices();
+        // Initialize the location service
+        _initializeLocationService();
+      }
+    });
+  }
+
+  // Initialize the location service
+  Future<void> _initializeLocationService() async {
+    try {
+      // Initialize the location service with the appropriate role
+      await _locationService.initialize(
+        widget.onPuvTypeSelected != null ? 'driver' : 'commuter',
+      );
+    } catch (e) {
+      print('Error initializing location service: $e');
+    }
   }
 
   @override
   void dispose() {
-    // Cancel position subscription first
+    // Cancel all subscriptions
     _positionStreamSubscription?.cancel();
+    _driversSubscription?.cancel();
+    _commutersSubscription?.cancel();
     // Cancel timers before disposing controller
     _debounceTimer?.cancel();
     // Safely dispose map controller
@@ -72,6 +112,492 @@ class HomeMapWidgetState extends State<HomeMapWidget> {
       }
     }
     super.dispose();
+  }
+
+  /// Start tracking nearby drivers based on PUV type
+  void startTrackingDrivers(String? puvType) {
+    // Cancel any existing subscription
+    _driversSubscription?.cancel();
+
+    // Update selected PUV type
+    _selectedPuvType = puvType;
+
+    // Update the location service with the selected PUV type
+    _locationService.updateSelectedPuvType(puvType);
+
+    // If no PUV type is selected, clear drivers from map
+    if (puvType == null) {
+      _clearDriverMarkers();
+      setState(() {
+        _showDrivers = false;
+      });
+      return;
+    }
+
+    // Set flag to show drivers
+    setState(() {
+      _showDrivers = true;
+    });
+
+    // Start tracking nearby drivers
+    if (_userLocation != null) {
+      _driversSubscription = _locationService
+          .getNearbyDrivers(
+            center: _userLocation!,
+            radiusKm: 5.0,
+            puvType: puvType,
+          )
+          .listen(_updateDriverMarkers);
+    }
+
+    // Notify parent widget if callback is provided
+    if (widget.onPuvTypeSelected != null) {
+      widget.onPuvTypeSelected!(puvType);
+    }
+  }
+
+  /// Start tracking nearby commuters based on PUV type
+  void startTrackingCommuters(String? puvType) {
+    // Cancel any existing subscription
+    _commutersSubscription?.cancel();
+
+    // Update selected PUV type
+    _selectedPuvType = puvType;
+
+    // Update the location service with the selected PUV type
+    _locationService.updateSelectedPuvType(puvType);
+
+    // If no PUV type is selected, clear commuters from map
+    if (puvType == null) {
+      _clearCommuterMarkers();
+      setState(() {
+        _showCommuters = false;
+      });
+      return;
+    }
+
+    // Set flag to show commuters
+    setState(() {
+      _showCommuters = true;
+    });
+
+    // Start tracking nearby commuters
+    if (_userLocation != null) {
+      _commutersSubscription = _locationService
+          .getNearbyCommuters(
+            center: _userLocation!,
+            radiusKm: 5.0,
+            puvType: puvType,
+          )
+          .listen(_updateCommuterMarkers);
+    }
+
+    // Notify parent widget if callback is provided
+    if (widget.onPuvTypeSelected != null) {
+      widget.onPuvTypeSelected!(puvType);
+    }
+  }
+
+  /// Update driver markers on the map
+  void _updateDriverMarkers(List<DriverLocation> drivers) async {
+    if (!mounted) return;
+
+    // Remove existing driver markers
+    _clearDriverMarkers();
+
+    // Create new markers for each driver
+    final Set<Marker> driverMarkers = {};
+
+    for (final driver in drivers) {
+      // Create a unique marker ID
+      final markerId = MarkerId('driver_${driver.userId}');
+
+      // Create info window content
+      final infoWindow = InfoWindow(
+        title: driver.plateNumber ?? 'PUV ${driver.puvType}',
+        snippet: driver.capacity ?? 'Tap for details',
+        onTap: () => _showDriverDetails(driver),
+      );
+
+      // Create the marker
+      final marker = Marker(
+        markerId: markerId,
+        position: driver.location,
+        icon: await _getDriverIcon(driver.puvType),
+        infoWindow: infoWindow,
+        rotation: driver.heading, // Orient the marker based on heading
+        flat: true, // Make the marker flat on the map
+        anchor: const Offset(0.5, 0.5), // Center the marker
+        zIndex: 2, // Higher z-index to appear above other markers
+      );
+
+      driverMarkers.add(marker);
+    }
+
+    // Update the map with new markers
+    if (mounted) {
+      setState(() {
+        _markers.addAll(driverMarkers);
+      });
+    }
+  }
+
+  /// Update commuter markers on the map
+  void _updateCommuterMarkers(List<CommuterLocation> commuters) async {
+    if (!mounted) return;
+
+    // Remove existing commuter markers
+    _clearCommuterMarkers();
+
+    // Create new markers for each commuter
+    final Set<Marker> commuterMarkers = {};
+
+    for (final commuter in commuters) {
+      // Create a unique marker ID
+      final markerId = MarkerId('commuter_${commuter.userId}');
+
+      // Create info window content
+      final infoWindow = InfoWindow(
+        title: commuter.userName ?? 'Commuter',
+        snippet:
+            commuter.destinationName != null
+                ? 'Going to ${commuter.destinationName}'
+                : 'Looking for ${commuter.selectedPuvType}',
+      );
+
+      // Create the marker
+      final marker = Marker(
+        markerId: markerId,
+        position: commuter.location,
+        icon: await _getCommuterIcon(),
+        infoWindow: infoWindow,
+        zIndex: 1, // Lower z-index than drivers
+      );
+
+      commuterMarkers.add(marker);
+    }
+
+    // Update the map with new markers
+    if (mounted) {
+      setState(() {
+        _markers.addAll(commuterMarkers);
+      });
+    }
+  }
+
+  /// Clear driver markers from the map
+  void _clearDriverMarkers() {
+    setState(() {
+      _markers.removeWhere(
+        (marker) => marker.markerId.value.startsWith('driver_'),
+      );
+    });
+  }
+
+  /// Clear commuter markers from the map
+  void _clearCommuterMarkers() {
+    setState(() {
+      _markers.removeWhere(
+        (marker) => marker.markerId.value.startsWith('commuter_'),
+      );
+    });
+  }
+
+  /// Show driver details in a bottom sheet
+  void _showDriverDetails(DriverLocation driver) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder:
+          (context) => Container(
+            decoration: BoxDecoration(
+              color: Colors.black.withOpacity(0.8),
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(16),
+              ),
+            ),
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Driver info header
+                Row(
+                  children: [
+                    CircleAvatar(
+                      backgroundColor: _getColorForPuvType(driver.puvType),
+                      radius: 24,
+                      child: Icon(
+                        _getIconForPuvType(driver.puvType),
+                        color: Colors.white,
+                        size: 24,
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            driver.plateNumber ?? 'Unknown',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 18,
+                            ),
+                          ),
+                          Text(
+                            driver.puvType,
+                            style: const TextStyle(
+                              color: Colors.white70,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    // Rating display
+                    if (driver.rating != null)
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.amber,
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(
+                              Icons.star,
+                              color: Colors.white,
+                              size: 16,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              driver.rating!.toStringAsFixed(1),
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+
+                // Driver details
+                _buildDriverInfoItem(
+                  'Driver',
+                  driver.driverName ?? 'Unknown',
+                  Icons.person,
+                ),
+                _buildDriverInfoItem(
+                  'Status',
+                  driver.status ?? 'Available',
+                  Icons.info_outline,
+                ),
+                _buildDriverInfoItem(
+                  'Capacity',
+                  driver.capacity ?? 'Unknown',
+                  Icons.people,
+                ),
+                if (driver.etaMinutes != null)
+                  _buildDriverInfoItem(
+                    'ETA',
+                    '${driver.etaMinutes} minutes',
+                    Icons.access_time,
+                  ),
+
+                const SizedBox(height: 16),
+
+                // Action buttons
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    _buildActionButton(
+                      'Call Driver',
+                      Icons.call,
+                      Colors.green,
+                      () => Navigator.pop(context),
+                    ),
+                    _buildActionButton(
+                      'Message',
+                      Icons.message,
+                      Colors.blue,
+                      () => Navigator.pop(context),
+                    ),
+                    _buildActionButton(
+                      'Track',
+                      Icons.location_on,
+                      Colors.amber,
+                      () => Navigator.pop(context),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+    );
+  }
+
+  /// Build a driver info item
+  Widget _buildDriverInfoItem(String label, String value, IconData icon) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8.0),
+      child: Row(
+        children: [
+          Icon(icon, color: Colors.white70, size: 20),
+          const SizedBox(width: 8),
+          Text(
+            '$label: ',
+            style: const TextStyle(color: Colors.white70, fontSize: 14),
+          ),
+          Text(
+            value,
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+              fontSize: 14,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Build an action button
+  Widget _buildActionButton(
+    String label,
+    IconData icon,
+    Color color,
+    VoidCallback onPressed,
+  ) {
+    return InkWell(
+      onTap: onPressed,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          CircleAvatar(
+            backgroundColor: color.withOpacity(0.2),
+            radius: 20,
+            child: Icon(icon, color: color, size: 20),
+          ),
+          const SizedBox(height: 4),
+          Text(label, style: TextStyle(color: color, fontSize: 12)),
+        ],
+      ),
+    );
+  }
+
+  /// Get the appropriate icon for a driver based on PUV type
+  Future<BitmapDescriptor> _getDriverIcon(String puvType) async {
+    // Use custom PUV icons with highlight for map markers
+    String iconPath;
+    switch (puvType.toLowerCase()) {
+      case 'bus':
+        iconPath = 'assets/icons/bus_highlight.png';
+        break;
+      case 'jeepney':
+        iconPath = 'assets/icons/jeepney_highlight.png';
+        break;
+      case 'multicab':
+        iconPath = 'assets/icons/multicab_highlight.png';
+        break;
+      case 'motorela':
+        iconPath = 'assets/icons/motorela_highlight.png';
+        break;
+      default:
+        // Fallback to default marker if no matching icon
+        return BitmapDescriptor.defaultMarkerWithHue(
+          BitmapDescriptor.hueViolet,
+        );
+    }
+
+    try {
+      // Load the custom icon
+      return await BitmapDescriptor.fromAssetImage(
+        const ImageConfiguration(size: Size(48, 48)),
+        iconPath,
+      );
+    } catch (e) {
+      // Fallback to colored markers if custom icon fails to load
+      debugPrint('Error loading PUV icon: $e, using default marker instead');
+
+      // Select the appropriate fallback icon based on PUV type
+      switch (puvType.toLowerCase()) {
+        case 'bus':
+          return BitmapDescriptor.defaultMarkerWithHue(
+            BitmapDescriptor.hueBlue,
+          );
+        case 'jeepney':
+          return BitmapDescriptor.defaultMarkerWithHue(
+            BitmapDescriptor.hueYellow,
+          );
+        case 'multicab':
+          return BitmapDescriptor.defaultMarkerWithHue(
+            BitmapDescriptor.hueGreen,
+          );
+        case 'motorela':
+          return BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed);
+        default:
+          return BitmapDescriptor.defaultMarkerWithHue(
+            BitmapDescriptor.hueViolet,
+          );
+      }
+    }
+  }
+
+  /// Get the icon for a commuter
+  Future<BitmapDescriptor> _getCommuterIcon() async {
+    try {
+      // Use the fromAssetImage method since it's still supported
+      return await BitmapDescriptor.fromAssetImage(
+        const ImageConfiguration(size: Size(48, 48)),
+        'assets/icons/person.png',
+      );
+    } catch (e) {
+      // Fallback to default marker if the custom icon fails to load
+      debugPrint(
+        'Error loading commuter icon: $e, using default marker instead',
+      );
+      return BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen);
+    }
+  }
+
+  /// Get color for PUV type
+  Color _getColorForPuvType(String type) {
+    switch (type.toLowerCase()) {
+      case 'bus':
+        return Colors.blue;
+      case 'jeepney':
+        return Colors.amber;
+      case 'multicab':
+        return Colors.green;
+      case 'motorela':
+        return Colors.red;
+      default:
+        return Colors.grey;
+    }
+  }
+
+  /// Get icon for PUV type
+  IconData _getIconForPuvType(String type) {
+    switch (type.toLowerCase()) {
+      case 'bus':
+        return Icons.directions_bus;
+      case 'jeepney':
+      case 'multicab':
+        return Icons.airport_shuttle;
+      case 'motorela':
+        return Icons.motorcycle;
+      default:
+        return Icons.directions_car;
+    }
   }
 
   // Add a method to display a route between two points
@@ -216,7 +742,6 @@ class HomeMapWidgetState extends State<HomeMapWidget> {
       );
 
       setState(() {
-        _routePoints = polylineCoordinates;
         _polylines[puvRouteId] = polyline;
         _isLoading = false;
       });
@@ -483,11 +1008,14 @@ class HomeMapWidgetState extends State<HomeMapWidget> {
     return true;
   }
 
-  Future<void> _initializeLocation() async {
+  /// Initialize location services and get the user's current location
+  /// This method is made public so it can be called from the MapRefresherWidget
+  Future<void> initializeLocation() async {
     if (!mounted) return;
     setState(() => _isLoading = true);
 
     try {
+      // Check if location services are enabled
       bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
       if (!serviceEnabled) {
         if (mounted) {
@@ -497,6 +1025,7 @@ class HomeMapWidgetState extends State<HomeMapWidget> {
         return;
       }
 
+      // Check and request location permissions
       LocationPermission permission = await Geolocator.checkPermission();
       if (permission == LocationPermission.denied) {
         permission = await Geolocator.requestPermission();
@@ -522,29 +1051,63 @@ class HomeMapWidgetState extends State<HomeMapWidget> {
         return;
       }
 
-      // Increase timeouts to avoid TimeoutExceptions
-      Position position;
-      try {
-        position = await Geolocator.getCurrentPosition(
-          desiredAccuracy: LocationAccuracy.high,
-          timeLimit: const Duration(seconds: 20), // Increased timeout
-        );
-      } catch (e) {
-        print(
-          'Error getting high accuracy position: $e, falling back to lower accuracy',
-        );
-        // Fallback to reduced accuracy
-        position = await Geolocator.getCurrentPosition(
-          desiredAccuracy: LocationAccuracy.reduced,
-          timeLimit: const Duration(seconds: 30), // Increased timeout further
-        );
+      // Use modern location settings
+      final locationSettings = LocationSettings(
+        accuracy: LocationAccuracy.high,
+        timeLimit: const Duration(seconds: 20),
+      );
+
+      // Get current position with retry mechanism
+      Position? position;
+      int retryCount = 0;
+      const maxRetries = 3;
+
+      while (position == null && retryCount < maxRetries) {
+        try {
+          position = await Geolocator.getCurrentPosition(
+            locationSettings: locationSettings,
+          );
+        } catch (e) {
+          retryCount++;
+          debugPrint('Location attempt $retryCount failed: $e');
+
+          if (retryCount >= maxRetries) {
+            // Last attempt with reduced accuracy
+            try {
+              final fallbackSettings = LocationSettings(
+                accuracy: LocationAccuracy.reduced,
+                timeLimit: const Duration(seconds: 30),
+              );
+              position = await Geolocator.getCurrentPosition(
+                locationSettings: fallbackSettings,
+              );
+            } catch (finalError) {
+              debugPrint('Final location attempt failed: $finalError');
+              // Use a default location as last resort (CDO)
+              position = Position(
+                latitude: 8.4542,
+                longitude: 124.6319,
+                timestamp: DateTime.now(),
+                accuracy: 0,
+                altitude: 0,
+                heading: 0,
+                speed: 0,
+                speedAccuracy: 0,
+                altitudeAccuracy: 0,
+                headingAccuracy: 0,
+              );
+            }
+          } else {
+            // Wait before retry
+            await Future.delayed(const Duration(seconds: 1));
+          }
+        }
       }
 
       if (mounted) {
         setState(() {
-          _userLocation = LatLng(position.latitude, position.longitude);
+          _userLocation = LatLng(position!.latitude, position.longitude);
           _isLoading = false;
-          _isLocationPermissionGranted = true;
         });
 
         // Add the user location marker
@@ -553,14 +1116,37 @@ class HomeMapWidgetState extends State<HomeMapWidget> {
         // Start location updates
         _startLocationUpdates();
 
-        // Center map on user location only if controller is ready
-        await Future.delayed(const Duration(milliseconds: 500));
-        if (mounted && _mapController != null) {
-          _centerOnUserLocation();
+        // Force map refresh if controller is ready
+        if (_mapController != null) {
+          // Small delay to ensure map is ready
+          await Future.delayed(const Duration(milliseconds: 500));
+
+          if (mounted && _mapController != null) {
+            try {
+              // Force map refresh with a small camera movement
+              final currentZoom = await _mapController!.getZoomLevel();
+              await _mapController!.animateCamera(
+                CameraUpdate.newCameraPosition(
+                  CameraPosition(
+                    target: _userLocation!,
+                    zoom: currentZoom + 0.1,
+                  ),
+                ),
+              );
+              await Future.delayed(const Duration(milliseconds: 300));
+              await _mapController!.animateCamera(
+                CameraUpdate.newCameraPosition(
+                  CameraPosition(target: _userLocation!, zoom: currentZoom),
+                ),
+              );
+            } catch (e) {
+              debugPrint('Error refreshing map: $e');
+            }
+          }
         }
       }
     } catch (e) {
-      print('Error initializing location: $e');
+      debugPrint('Error initializing location: $e');
       if (mounted) {
         setState(() => _isLoading = false);
 
@@ -600,7 +1186,7 @@ class HomeMapWidgetState extends State<HomeMapWidget> {
         }
       },
       onError: (e) {
-        print('Error getting location updates: $e');
+        debugPrint('Error getting location updates: $e');
       },
       cancelOnError: false, // Don't cancel subscription on error
     );
@@ -638,7 +1224,7 @@ class HomeMapWidgetState extends State<HomeMapWidget> {
         ),
       );
     } catch (e) {
-      print('Error centering on user location: $e');
+      debugPrint('Error centering on user location: $e');
     }
   }
 
@@ -690,7 +1276,7 @@ class HomeMapWidgetState extends State<HomeMapWidget> {
         widget.onDestinationSelected(placeName);
       }
     } catch (e) {
-      print('Error moving to location: $e');
+      debugPrint('Error moving to location: $e');
     }
   }
 
@@ -732,7 +1318,7 @@ class HomeMapWidgetState extends State<HomeMapWidget> {
               TextButton(
                 onPressed: () {
                   Navigator.pop(context);
-                  _initializeLocation();
+                  initializeLocation();
                 },
                 child: const Text('Try Again'),
               ),
@@ -772,11 +1358,11 @@ class HomeMapWidgetState extends State<HomeMapWidget> {
   Future<void> _checkGooglePlayServices() async {
     if (defaultTargetPlatform == TargetPlatform.android) {
       try {
-        print('Checking Google Play Services availability...');
+        debugPrint('Checking Google Play Services availability...');
         await Geolocator.isLocationServiceEnabled(); // This will indirectly check Google Play Services
-        print('Google Play Services are available');
+        debugPrint('Google Play Services are available');
       } catch (e) {
-        print('Error verifying Google Play Services: $e');
+        debugPrint('Error verifying Google Play Services: $e');
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
@@ -804,13 +1390,35 @@ class HomeMapWidgetState extends State<HomeMapWidget> {
               target: _userLocation ?? const LatLng(8.4542, 124.6319),
               zoom: 15,
             ),
-            onMapCreated: (controller) {
+            onMapCreated: (controller) async {
               if (mounted) {
                 setState(() {
                   _mapController = controller;
                 });
-                if (_userLocation != null) {
-                  _centerOnUserLocation();
+
+                // Apply map styling to ensure proper loading
+                try {
+                  // Wait a moment to ensure map is properly initialized
+                  await Future.delayed(const Duration(milliseconds: 500));
+
+                  // Force map to refresh by changing zoom slightly
+                  if (mounted && _mapController != null) {
+                    final currentZoom = await _mapController!.getZoomLevel();
+                    await _mapController!.animateCamera(
+                      CameraUpdate.zoomTo(currentZoom + 0.1),
+                    );
+                    await Future.delayed(const Duration(milliseconds: 300));
+                    await _mapController!.animateCamera(
+                      CameraUpdate.zoomTo(currentZoom),
+                    );
+                  }
+
+                  // Center on user location if available
+                  if (_userLocation != null && mounted) {
+                    _centerOnUserLocation();
+                  }
+                } catch (e) {
+                  debugPrint('Error initializing map: $e');
                 }
               }
             },

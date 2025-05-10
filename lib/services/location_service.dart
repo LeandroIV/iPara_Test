@@ -1,8 +1,12 @@
 import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import '../models/driver_location_model.dart';
+import '../models/commuter_location_model.dart';
+import '../models/vehicle_model.dart';
 
 class LocationService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -12,6 +16,9 @@ class LocationService {
   String? _userId;
   String? _userRole;
   bool _isLocationVisible = true;
+  String? _selectedPuvType;
+  String? _vehicleId;
+  String? _routeId;
 
   // Singleton pattern
   static final LocationService _instance = LocationService._internal();
@@ -92,7 +99,8 @@ class LocationService {
       String collection =
           _userRole == 'driver' ? 'driver_locations' : 'commuter_locations';
 
-      await _firestore.collection(collection).doc(_userId).set({
+      // Create base data
+      Map<String, dynamic> locationData = {
         'userId': _userId,
         'location': location,
         'heading': position.heading,
@@ -100,7 +108,57 @@ class LocationService {
         'isLocationVisible': _isLocationVisible,
         'lastUpdated': timestamp,
         'deviceInfo': {'platform': 'mobile', 'accuracy': position.accuracy},
-      }, SetOptions(merge: true));
+      };
+
+      // Add role-specific data
+      if (_userRole == 'driver') {
+        // Add driver-specific data
+        locationData['isOnline'] = true;
+        locationData['puvType'] = _selectedPuvType;
+        locationData['vehicleId'] = _vehicleId;
+        locationData['routeId'] = _routeId;
+
+        // If we have vehicle details, add them
+        if (_vehicleId != null) {
+          try {
+            final vehicleDoc =
+                await _firestore.collection('vehicles').doc(_vehicleId).get();
+            if (vehicleDoc.exists) {
+              final vehicleData = vehicleDoc.data();
+              locationData['plateNumber'] = vehicleData?['plateNumber'];
+              locationData['capacity'] =
+                  '0/8'; // Default capacity, should be updated with real data
+              locationData['status'] = 'Available'; // Default status
+            }
+          } catch (e) {
+            print('Error fetching vehicle data: $e');
+          }
+        }
+
+        // Add driver name and rating
+        final userDoc = await _firestore.collection('users').doc(_userId).get();
+        if (userDoc.exists) {
+          locationData['driverName'] =
+              userDoc.data()?['displayName'] ?? 'Driver';
+          locationData['rating'] =
+              userDoc.data()?['rating'] ?? 4.5; // Default rating
+        }
+      } else if (_userRole == 'commuter') {
+        // Add commuter-specific data
+        locationData['selectedPuvType'] = _selectedPuvType;
+
+        // Add user name
+        final userDoc = await _firestore.collection('users').doc(_userId).get();
+        if (userDoc.exists) {
+          locationData['userName'] =
+              userDoc.data()?['displayName'] ?? 'Commuter';
+        }
+      }
+
+      await _firestore
+          .collection(collection)
+          .doc(_userId)
+          .set(locationData, SetOptions(merge: true));
     } catch (e) {
       print('Error updating location: $e');
     }
@@ -121,13 +179,58 @@ class LocationService {
     }
   }
 
-  Stream<QuerySnapshot> getNearbyDrivers({
-    required GeoPoint center,
+  // Set the selected PUV type for the user
+  Future<void> updateSelectedPuvType(String? puvType) async {
+    _selectedPuvType = puvType;
+
+    // Update the location data with the new PUV type
+    if (_userId != null) {
+      try {
+        String collection =
+            _userRole == 'driver' ? 'driver_locations' : 'commuter_locations';
+        await _firestore.collection(collection).doc(_userId).update({
+          'selectedPuvType': puvType,
+          'puvType': puvType, // For backward compatibility with existing code
+        });
+      } catch (e) {
+        print('Error updating PUV type: $e');
+      }
+    }
+  }
+
+  // Set vehicle and route information for drivers
+  Future<void> updateDriverVehicleInfo(
+    String? vehicleId,
+    String? routeId,
+  ) async {
+    _vehicleId = vehicleId;
+    _routeId = routeId;
+
+    // Update the location data with the new vehicle and route info
+    if (_userId != null && _userRole == 'driver') {
+      try {
+        await _firestore.collection('driver_locations').doc(_userId).update({
+          'vehicleId': vehicleId,
+          'routeId': routeId,
+        });
+
+        // Fetch and update vehicle details
+        if (vehicleId != null) {
+          final position = await Geolocator.getCurrentPosition();
+          await _updateLocation(position);
+        }
+      } catch (e) {
+        print('Error updating driver vehicle info: $e');
+      }
+    }
+  }
+
+  // Get a stream of nearby drivers based on PUV type
+  Stream<List<DriverLocation>> getNearbyDrivers({
+    required LatLng center,
     double radiusKm = 5.0,
     String? puvType,
   }) {
-    // This is a simplified version that will work for demo purposes
-
     // Get all online drivers
     Query query = _firestore
         .collection('driver_locations')
@@ -136,15 +239,72 @@ class LocationService {
 
     // Filter by PUV type if specified
     if (puvType != null) {
-      query = query.where('vehicleType', isEqualTo: puvType);
+      query = query.where('puvType', isEqualTo: puvType);
     }
 
     // We'll filter by distance client-side since Firestore doesn't support geoqueries directly
-    return query.snapshots();
+    return query.snapshots().map((snapshot) {
+      return snapshot.docs
+          .map((doc) {
+            // Convert to DriverLocation model
+            return DriverLocation.fromFirestore(doc);
+          })
+          .where((driver) {
+            // Filter by distance
+            final driverLocation = driver.location;
+            final distanceInMeters = Geolocator.distanceBetween(
+              center.latitude,
+              center.longitude,
+              driverLocation.latitude,
+              driverLocation.longitude,
+            );
+            return distanceInMeters / 1000 <= radiusKm;
+          })
+          .toList();
+    });
   }
 
-  Future<List<DocumentSnapshot>> getNearbyDriversOnce({
-    required GeoPoint center,
+  // Get a stream of nearby commuters based on PUV type
+  Stream<List<CommuterLocation>> getNearbyCommuters({
+    required LatLng center,
+    double radiusKm = 5.0,
+    String? puvType,
+  }) {
+    // Get all visible commuters
+    Query query = _firestore
+        .collection('commuter_locations')
+        .where('isLocationVisible', isEqualTo: true);
+
+    // Filter by selected PUV type if specified
+    if (puvType != null) {
+      query = query.where('selectedPuvType', isEqualTo: puvType);
+    }
+
+    // We'll filter by distance client-side
+    return query.snapshots().map((snapshot) {
+      return snapshot.docs
+          .map((doc) {
+            // Convert to CommuterLocation model
+            return CommuterLocation.fromFirestore(doc);
+          })
+          .where((commuter) {
+            // Filter by distance
+            final commuterLocation = commuter.location;
+            final distanceInMeters = Geolocator.distanceBetween(
+              center.latitude,
+              center.longitude,
+              commuterLocation.latitude,
+              commuterLocation.longitude,
+            );
+            return distanceInMeters / 1000 <= radiusKm;
+          })
+          .toList();
+    });
+  }
+
+  // Get nearby drivers once (not as a stream)
+  Future<List<DriverLocation>> getNearbyDriversOnce({
+    required LatLng center,
     double radiusKm = 5.0,
     String? puvType,
   }) async {
@@ -156,11 +316,28 @@ class LocationService {
 
     // Filter by PUV type if specified
     if (puvType != null) {
-      query = query.where('vehicleType', isEqualTo: puvType);
+      query = query.where('puvType', isEqualTo: puvType);
     }
 
     final snapshot = await query.get();
-    return snapshot.docs;
+
+    // Convert to DriverLocation models and filter by distance
+    return snapshot.docs
+        .map((doc) {
+          return DriverLocation.fromFirestore(doc);
+        })
+        .where((driver) {
+          // Filter by distance
+          final driverLocation = driver.location;
+          final distanceInMeters = Geolocator.distanceBetween(
+            center.latitude,
+            center.longitude,
+            driverLocation.latitude,
+            driverLocation.longitude,
+          );
+          return distanceInMeters / 1000 <= radiusKm;
+        })
+        .toList();
   }
 
   // Clean up resources

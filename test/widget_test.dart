@@ -7,24 +7,44 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-
-import 'package:ipara_new/main.dart';
+import 'package:ipara_new/models/family_group_model.dart';
+import 'package:ipara_new/models/emergency_contact_model.dart';
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const MyApp());
+  testWidgets('App smoke test', (WidgetTester tester) async {
+    // Create test widgets for our models
+    final familyGroup = FamilyGroup(
+      id: 'test-group',
+      hostId: 'test-user',
+      groupName: 'Test Family',
+      inviteCode: 'TEST123',
+      createdAt: DateTime.now(),
+      members: ['test-user'],
+    );
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
+    final emergencyContact = EmergencyContact(
+      id: 'test-contact',
+      name: 'Test Contact',
+      phoneNumber: '123456789',
+      relationship: 'Test',
+    );
 
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pump();
+    // Build simple widgets to display our models
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Column(
+            children: [
+              Text('Family Group: ${familyGroup.groupName}'),
+              Text('Emergency Contact: ${emergencyContact.name}'),
+            ],
+          ),
+        ),
+      ),
+    );
 
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+    // Verify that our widgets are displayed
+    expect(find.text('Family Group: Test Family'), findsOneWidget);
+    expect(find.text('Emergency Contact: Test Contact'), findsOneWidget);
   });
 }

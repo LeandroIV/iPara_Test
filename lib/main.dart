@@ -12,6 +12,7 @@ import 'screens/role_selection_screen.dart';
 import 'screens/commuter/commuter_home_screen.dart';
 import 'screens/driver/driver_home_screen.dart';
 import 'screens/operator/operator_home_screen.dart';
+import 'screens/testing/auth_test_screen.dart';
 import 'services/user_service.dart';
 import 'services/notification_service.dart';
 import 'models/user_role.dart';
@@ -123,6 +124,7 @@ class MyApp extends StatelessWidget {
         '/commuter/home': (context) => const CommuterHomeScreen(),
         '/driver/home': (context) => const DriverHomeScreen(),
         '/operator/home': (context) => const OperatorHomeScreen(),
+        '/testing/auth': (context) => const AuthTestScreen(),
       },
     );
   }
@@ -374,6 +376,24 @@ class LoginScreen extends StatelessWidget {
                           ),
                         ],
                       ),
+
+                      // Testing option (only visible in debug mode)
+                      if (kDebugMode)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 20),
+                          child: TextButton(
+                            onPressed: () {
+                              Navigator.pushNamed(context, '/testing/auth');
+                            },
+                            child: const Text(
+                              'Run Auth Performance Tests',
+                              style: TextStyle(
+                                color: Colors.grey,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ),
+                        ),
                     ],
                   ),
                 ),

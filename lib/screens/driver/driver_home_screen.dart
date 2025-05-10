@@ -2,10 +2,14 @@ import 'package:flutter/material.dart';
 import '../../models/user_role.dart';
 import '../../services/user_service.dart';
 import '../../widgets/home_map_widget.dart';
+import '../../widgets/map_refresher_widget.dart';
 import '../../services/route_service.dart';
 import '../../models/route_model.dart';
 import '../edit_profile_screen.dart';
 import '../notification_settings_screen.dart';
+import '../settings/settings_screen.dart';
+import '../family/family_group_screen.dart';
+import '../emergency/emergency_screen.dart';
 import 'dart:async';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -388,6 +392,67 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
     // TODO: Implement actual location sharing logic with backend
   }
 
+  // Get PUV type icon as a widget
+  Future<Widget> _getPuvTypeIcon(String puvType, bool isSelected) async {
+    try {
+      // Since we can't directly convert BitmapDescriptor to Image widget,
+      // we'll use the asset path directly
+      String iconPath;
+      switch (puvType.toLowerCase()) {
+        case 'bus':
+          iconPath = 'assets/icons/bus.png';
+          break;
+        case 'jeepney':
+          iconPath = 'assets/icons/jeepney.png';
+          break;
+        case 'multicab':
+          iconPath = 'assets/icons/multicab.png';
+          break;
+        case 'motorela':
+          iconPath = 'assets/icons/motorela.png';
+          break;
+        default:
+          // Fallback to icon if no matching asset
+          return Icon(
+            _getFallbackIconForPuvType(puvType),
+            color: isSelected ? Colors.white : Colors.white70,
+            size: 24,
+          );
+      }
+
+      // Use Image.asset directly
+      return Image.asset(
+        iconPath,
+        width: 24,
+        height: 24,
+        color: isSelected ? Colors.white : Colors.white70,
+      );
+    } catch (e) {
+      // Fallback to icon if there's an error
+      return Icon(
+        _getFallbackIconForPuvType(puvType),
+        color: isSelected ? Colors.white : Colors.white70,
+        size: 24,
+      );
+    }
+  }
+
+  // Get fallback icon for PUV type
+  IconData _getFallbackIconForPuvType(String type) {
+    switch (type.toLowerCase()) {
+      case 'bus':
+        return Icons.directions_bus;
+      case 'jeepney':
+        return Icons.airport_shuttle;
+      case 'multicab':
+        return Icons.local_shipping;
+      case 'motorela':
+        return Icons.motorcycle;
+      default:
+        return Icons.directions_car;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     // Get filtered routes based on selected PUV type
@@ -511,6 +576,17 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
                                     .updateUserLocationVisibility(
                                       _isLocationVisibleToCommuters,
                                     );
+
+                                // Start or stop tracking commuters based on online status
+                                if (_isOnline) {
+                                  _mapKey.currentState!.startTrackingCommuters(
+                                    selectedPUVType,
+                                  );
+                                } else {
+                                  _mapKey.currentState!.startTrackingCommuters(
+                                    null,
+                                  );
+                                }
                               }
 
                               // Show confirmation about location visibility
@@ -553,72 +629,142 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
                           ),
                         ),
                         const SizedBox(height: 10),
-                        SingleChildScrollView(
-                          scrollDirection: Axis.horizontal,
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children:
-                                puvCounts.entries.map((entry) {
-                                  bool isSelected =
-                                      selectedPUVType == entry.key;
-                                  return Padding(
-                                    padding: const EdgeInsets.only(right: 8.0),
-                                    child: ElevatedButton(
-                                      onPressed: () {
-                                        setState(() {
-                                          selectedPUVType = entry.key;
+                        SizedBox(
+                          width: double.infinity,
+                          height: 80, // Fixed height
+                          child: SingleChildScrollView(
+                            scrollDirection: Axis.horizontal,
+                            child: Row(
+                              children:
+                                  puvCounts.entries.map((entry) {
+                                    bool isSelected =
+                                        selectedPUVType == entry.key;
+                                    return Padding(
+                                      padding: const EdgeInsets.only(
+                                        right: 8.0,
+                                      ),
+                                      child: SizedBox(
+                                        width:
+                                            80, // Fixed width for consistent sizing
+                                        child: ElevatedButton(
+                                          onPressed: () {
+                                            setState(() {
+                                              selectedPUVType = entry.key;
 
-                                          // Clear any selected route when changing PUV type
-                                          _selectedRoute = null;
-                                          if (_mapKey.currentState != null) {
-                                            _mapKey.currentState!.clearRoutes();
-                                          }
-                                        });
-                                      },
-                                      style: ElevatedButton.styleFrom(
-                                        backgroundColor:
-                                            isSelected
-                                                ? Colors.blue
-                                                : Colors.white.withOpacity(0.1),
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 16,
-                                          vertical: 12,
-                                        ),
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(
-                                            10,
+                                              // Clear any selected route when changing PUV type
+                                              _selectedRoute = null;
+                                              if (_mapKey.currentState !=
+                                                  null) {
+                                                _mapKey.currentState!
+                                                    .clearRoutes();
+
+                                                // Start tracking commuters with the selected PUV type
+                                                if (_isOnline &&
+                                                    _isLocationVisibleToCommuters) {
+                                                  _mapKey.currentState!
+                                                      .startTrackingCommuters(
+                                                        selectedPUVType,
+                                                      );
+                                                }
+                                              }
+                                            });
+                                          },
+                                          style: ElevatedButton.styleFrom(
+                                            backgroundColor:
+                                                isSelected
+                                                    ? Colors.blue
+                                                    : Colors.white.withAlpha(
+                                                      25,
+                                                    ),
+                                            padding:
+                                                EdgeInsets
+                                                    .zero, // Remove padding
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(8),
+                                            ),
+                                          ),
+                                          child: Padding(
+                                            padding: const EdgeInsets.symmetric(
+                                              vertical: 8.0,
+                                            ),
+                                            child: Column(
+                                              mainAxisSize: MainAxisSize.min,
+                                              mainAxisAlignment:
+                                                  MainAxisAlignment.center,
+                                              children: [
+                                                // Icon
+                                                FutureBuilder<Widget>(
+                                                  future: _getPuvTypeIcon(
+                                                    entry.key,
+                                                    isSelected,
+                                                  ),
+                                                  builder: (context, snapshot) {
+                                                    if (snapshot
+                                                            .connectionState ==
+                                                        ConnectionState
+                                                            .waiting) {
+                                                      return SizedBox(
+                                                        width: 24,
+                                                        height: 24,
+                                                        child: CircularProgressIndicator(
+                                                          strokeWidth: 2,
+                                                          color:
+                                                              isSelected
+                                                                  ? Colors.white
+                                                                  : Colors
+                                                                      .white70,
+                                                        ),
+                                                      );
+                                                    }
+                                                    return snapshot.data ??
+                                                        Icon(
+                                                          _getFallbackIconForPuvType(
+                                                            entry.key,
+                                                          ),
+                                                          color:
+                                                              isSelected
+                                                                  ? Colors.white
+                                                                  : Colors
+                                                                      .white70,
+                                                          size: 24,
+                                                        );
+                                                  },
+                                                ),
+                                                const SizedBox(height: 4),
+                                                // PUV Type Name
+                                                Text(
+                                                  entry.key,
+                                                  style: TextStyle(
+                                                    color:
+                                                        isSelected
+                                                            ? Colors.white
+                                                            : Colors.white70,
+                                                    fontWeight: FontWeight.bold,
+                                                    fontSize: 12,
+                                                  ),
+                                                  textAlign: TextAlign.center,
+                                                ),
+                                                // Available count - smaller and more subtle
+                                                Text(
+                                                  '${entry.value}',
+                                                  style: TextStyle(
+                                                    color:
+                                                        isSelected
+                                                            ? Colors.white70
+                                                            : Colors.white54,
+                                                    fontSize: 10,
+                                                  ),
+                                                  textAlign: TextAlign.center,
+                                                ),
+                                              ],
+                                            ),
                                           ),
                                         ),
                                       ),
-                                      child: Column(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Text(
-                                            entry.key,
-                                            style: TextStyle(
-                                              color:
-                                                  isSelected
-                                                      ? Colors.white
-                                                      : Colors.white70,
-                                              fontWeight: FontWeight.bold,
-                                            ),
-                                          ),
-                                          const SizedBox(height: 4),
-                                          Text(
-                                            '${entry.value} available',
-                                            style: TextStyle(
-                                              color:
-                                                  isSelected
-                                                      ? Colors.white70
-                                                      : Colors.white54,
-                                              fontSize: 12,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  );
-                                }).toList(),
+                                    );
+                                  }).toList(),
+                            ),
                           ),
                         ),
                       ],
@@ -660,7 +806,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
                             ],
                           ),
                           const SizedBox(height: 6),
-                          Container(
+                          SizedBox(
                             width: double.infinity,
                             height: 105,
                             child:
@@ -706,6 +852,12 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
                             },
                           ),
                         ),
+
+                        // Map refresher button
+                        MapRefresherWidget(
+                          mapKey: _mapKey,
+                          position: MapRefresherPosition.topRight,
+                        ),
                       ],
                     ),
                   ),
@@ -719,7 +871,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
             Positioned.fill(
               child: GestureDetector(
                 onTap: _toggleDrawer,
-                child: Container(color: Colors.black.withOpacity(0.3)),
+                child: Container(color: Colors.black.withAlpha(76)),
               ),
             ),
 
@@ -743,7 +895,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
                         color: Colors.black,
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.blue.withOpacity(0.3),
+                            color: Colors.blue.withAlpha(76),
                             blurRadius: 10,
                           ),
                         ],
@@ -755,7 +907,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
                             Container(
                               padding: EdgeInsets.all(16),
                               decoration: BoxDecoration(
-                                color: Colors.blue.withOpacity(0.2),
+                                color: Colors.blue.withAlpha(51),
                               ),
                               child: Row(
                                 children: [
@@ -886,7 +1038,14 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
                                     title: 'Settings',
                                     onTap: () {
                                       _toggleDrawer();
-                                      // TODO: Navigate to settings
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder:
+                                              (context) =>
+                                                  const SettingsScreen(),
+                                        ),
+                                      );
                                     },
                                   ),
                                   _buildDrawerItem(
@@ -900,6 +1059,38 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
                                           builder:
                                               (context) =>
                                                   const NotificationSettingsScreen(),
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                  // Family Group option
+                                  _buildDrawerItem(
+                                    icon: Icons.family_restroom,
+                                    title: 'Family Group',
+                                    onTap: () {
+                                      _toggleDrawer();
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder:
+                                              (context) =>
+                                                  const FamilyGroupScreen(),
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                  // Emergency option
+                                  _buildDrawerItem(
+                                    icon: Icons.emergency,
+                                    title: 'Emergency',
+                                    onTap: () {
+                                      _toggleDrawer();
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder:
+                                              (context) =>
+                                                  const EmergencyScreen(),
                                         ),
                                       );
                                     },

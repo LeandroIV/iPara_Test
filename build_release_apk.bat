@@ -6,27 +6,27 @@ echo This script will build a release APK that you can share with others.
 echo.
 
 echo Step 1: Cleaning the project...
-flutter clean
+call flutter clean
 if %ERRORLEVEL% neq 0 (
-    echo Error cleaning project.
+    echo Error cleaning project. Error code: %ERRORLEVEL%
     pause
     exit /b 1
 )
 
 echo.
 echo Step 2: Getting dependencies...
-flutter pub get
+call flutter pub get
 if %ERRORLEVEL% neq 0 (
-    echo Error getting dependencies.
+    echo Error getting dependencies. Error code: %ERRORLEVEL%
     pause
     exit /b 1
 )
 
 echo.
 echo Step 3: Building release APK...
-flutter build apk --release
+call flutter build apk --release
 if %ERRORLEVEL% neq 0 (
-    echo Error building release APK.
+    echo Error building release APK. Error code: %ERRORLEVEL%
     pause
     exit /b 1
 )
