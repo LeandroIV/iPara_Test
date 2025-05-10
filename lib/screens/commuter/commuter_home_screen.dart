@@ -76,11 +76,18 @@ class _CommuterHomeScreenState extends State<CommuterHomeScreen>
     });
 
     try {
-      // For demo purposes, use mock data
-      // In production, this would be: await _routeService.getAllRoutes();
-      _availableRoutes = _routeService.getMockRoutes();
+      // Use Firestore data instead of mock data
+      _availableRoutes = await _routeService.getAllRoutes();
+
+      // Fallback to mock data if no routes found in Firestore
+      if (_availableRoutes.isEmpty) {
+        debugPrint('No routes found in Firestore, using mock data as fallback');
+        _availableRoutes = _routeService.getMockRoutes();
+      }
     } catch (e) {
-      print('Error loading routes: $e');
+      debugPrint('Error loading routes: $e');
+      // Fallback to mock data on error
+      _availableRoutes = _routeService.getMockRoutes();
     } finally {
       if (mounted) {
         setState(() {

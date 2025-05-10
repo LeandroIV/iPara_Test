@@ -6,6 +6,7 @@ import '../notification_settings_screen.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'vehicle_management_screen.dart';
+import 'route_management_screen.dart';
 
 class OperatorHomeScreen extends StatefulWidget {
   const OperatorHomeScreen({super.key});
@@ -619,7 +620,14 @@ class _OperatorHomeScreenState extends State<OperatorHomeScreen>
                                     title: 'Routes',
                                     onTap: () {
                                       _toggleDrawer();
-                                      // TODO: Navigate to routes
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder:
+                                              (context) =>
+                                                  const RouteManagementScreen(),
+                                        ),
+                                      );
                                     },
                                   ),
                                   _buildDrawerItem(
@@ -786,6 +794,23 @@ class _OperatorHomeScreenState extends State<OperatorHomeScreen>
                             MaterialPageRoute(
                               builder:
                                   (context) => const VehicleManagementScreen(),
+                            ),
+                          );
+                        },
+                      ),
+                      ListTile(
+                        leading: const Icon(Icons.route, color: Colors.green),
+                        title: const Text(
+                          'Route Management',
+                          style: TextStyle(color: Colors.white),
+                        ),
+                        onTap: () {
+                          Navigator.pop(context);
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder:
+                                  (context) => const RouteManagementScreen(),
                             ),
                           );
                         },
