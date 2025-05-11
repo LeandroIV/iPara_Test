@@ -13,6 +13,8 @@ import 'screens/commuter/commuter_home_screen.dart';
 import 'screens/driver/driver_home_screen.dart';
 import 'screens/operator/operator_home_screen.dart';
 import 'screens/testing/auth_test_screen.dart';
+import 'screens/debug/debug_puv_screen.dart';
+import 'screens/debug/debug_driver_icons.dart';
 import 'services/user_service.dart';
 import 'services/notification_service.dart';
 import 'models/user_role.dart';
@@ -113,6 +115,7 @@ class MyApp extends StatelessWidget {
       ),
       initialRoute: '/splash',
       routes: {
+        // Main app routes
         '/splash': (context) => const SplashScreen(),
         '/': (context) => const LoginScreen(),
         '/login': (context) => const LoginScreen(),
@@ -124,7 +127,12 @@ class MyApp extends StatelessWidget {
         '/commuter/home': (context) => const CommuterHomeScreen(),
         '/driver/home': (context) => const DriverHomeScreen(),
         '/operator/home': (context) => const OperatorHomeScreen(),
-        '/testing/auth': (context) => const AuthTestScreen(),
+
+        // Debug routes - only included in debug builds
+        if (kDebugMode) '/testing/auth': (context) => const AuthTestScreen(),
+        if (kDebugMode) '/debug/puv': (context) => const DebugPUVScreen(),
+        if (kDebugMode)
+          '/debug/driver-icons': (context) => const DebugDriverIconsScreen(),
       },
     );
   }

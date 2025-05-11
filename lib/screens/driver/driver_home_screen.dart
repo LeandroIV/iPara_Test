@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import '../../models/user_role.dart';
 import '../../services/user_service.dart';
 import '../../widgets/home_map_widget.dart';
-import '../../widgets/map_refresher_widget.dart';
 import '../../services/route_service.dart';
 import '../../models/route_model.dart';
 import '../edit_profile_screen.dart';
@@ -50,10 +50,10 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
 
   // Placeholder data for PUV counts
   final Map<String, int> puvCounts = {
-    'Bus': 8,
-    'Jeepney': 32,
-    'Multicab': 15,
-    'Motorela': 10,
+    'Bus': 9, // Updated to include R3 route
+    'Jeepney': 44,
+    'Multicab': 16, // Updated to include RB route
+    'Motorela': 11, // Updated to include BLUE route
   };
 
   @override
@@ -71,25 +71,20 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
     _loadRoutes();
   }
 
-  // Load routes from service
+  // Load routes from service (using mock data only)
   Future<void> _loadRoutes() async {
     setState(() {
       _isLoadingRoutes = true;
     });
 
     try {
-      // Use Firestore data instead of mock data
-      _availableRoutes = await _routeService.getAllRoutes();
-
-      // Fallback to mock data if no routes found in Firestore
-      if (_availableRoutes.isEmpty) {
-        debugPrint('No routes found in Firestore, using mock data as fallback');
-        _availableRoutes = _routeService.getMockRoutes();
-      }
+      // Use mock data directly instead of Firestore
+      _availableRoutes = _routeService.getMockRoutes();
+      debugPrint(
+        'Using mock routes data: ${_availableRoutes.map((r) => r.routeCode).join(', ')}',
+      );
     } catch (e) {
       debugPrint('Error loading routes: $e');
-      // Fallback to mock data on error
-      _availableRoutes = _routeService.getMockRoutes();
     } finally {
       if (mounted) {
         setState(() {
@@ -99,14 +94,28 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
     }
   }
 
-  // Filter routes based on selected PUV type
+  // Filter routes based on selected PUV type with custom sorting
   List<PUVRoute> get filteredRoutes {
-    return _availableRoutes
-        .where(
-          (route) =>
-              route.puvType.toLowerCase() == selectedPUVType.toLowerCase(),
-        )
-        .toList();
+    // Filter routes by PUV type
+    final routes =
+        _availableRoutes
+            .where(
+              (route) =>
+                  route.puvType.toLowerCase() == selectedPUVType.toLowerCase(),
+            )
+            .toList();
+
+    // Custom sorting logic to ensure specific route order
+    routes.sort((a, b) {
+      // Special case: If one is RD and the other is LA, RD comes first
+      if (a.routeCode == 'RD' && b.routeCode == 'LA') return -1;
+      if (a.routeCode == 'LA' && b.routeCode == 'RD') return 1;
+
+      // For all other routes, sort alphabetically by routeCode
+      return a.routeCode.compareTo(b.routeCode);
+    });
+
+    return routes;
   }
 
   // Display route on map
@@ -418,6 +427,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
         case 'motorela':
           iconPath = 'assets/icons/motorela.png';
           break;
+
         default:
           // Fallback to icon if no matching asset
           return Icon(
@@ -486,9 +496,25 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        IconButton(
-                          icon: Icon(Icons.menu, color: Colors.white),
-                          onPressed: _toggleDrawer,
+                        Row(
+                          children: [
+                            IconButton(
+                              icon: Icon(Icons.menu, color: Colors.white),
+                              onPressed: _toggleDrawer,
+                            ),
+                            // Debug button (only visible in debug mode)
+                            if (kDebugMode) // Only show in debug builds
+                              IconButton(
+                                icon: Icon(
+                                  Icons.bug_report,
+                                  color: Colors.amber,
+                                ),
+                                onPressed: () {
+                                  Navigator.pushNamed(context, '/debug/puv');
+                                },
+                                tooltip: 'Debug PUV Types',
+                              ),
+                          ],
                         ),
                         Row(
                           children: [
@@ -586,10 +612,17 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
 
                                 // Start or stop tracking commuters based on online status
                                 if (_isOnline) {
+                                  // Debug print to verify the PUV type being passed
+                                  debugPrint(
+                                    'Starting to track commuters with PUV type: $selectedPUVType',
+                                  );
                                   _mapKey.currentState!.startTrackingCommuters(
                                     selectedPUVType,
                                   );
                                 } else {
+                                  debugPrint(
+                                    'Stopping commuter tracking (offline)',
+                                  );
                                   _mapKey.currentState!.startTrackingCommuters(
                                     null,
                                   );
@@ -668,6 +701,9 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
                                                 // Start tracking commuters with the selected PUV type
                                                 if (_isOnline &&
                                                     _isLocationVisibleToCommuters) {
+                                                  debugPrint(
+                                                    'PUV type changed, tracking commuters with: $selectedPUVType',
+                                                  );
                                                   _mapKey.currentState!
                                                       .startTrackingCommuters(
                                                         selectedPUVType,
@@ -860,10 +896,69 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
                           ),
                         ),
 
-                        // Map refresher button
-                        MapRefresherWidget(
-                          mapKey: _mapKey,
-                          position: MapRefresherPosition.topRight,
+                        // Visibility button positioned at the left side of the locator button
+                        Positioned(
+                          right:
+                              64, // Positioned to the left of the locator button
+                          top: 16,
+                          child: Material(
+                            elevation: 4,
+                            borderRadius: BorderRadius.circular(16),
+                            child: Container(
+                              decoration: BoxDecoration(
+                                color:
+                                    _isLocationVisibleToCommuters
+                                        ? Colors.green.withAlpha(230)
+                                        : Colors.red.withAlpha(230),
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                              child: Tooltip(
+                                message:
+                                    _isLocationVisibleToCommuters
+                                        ? 'Your location is visible to commuters'
+                                        : 'Your location is hidden from commuters',
+                                child: InkWell(
+                                  onTap: _toggleLocationVisibility,
+                                  borderRadius: BorderRadius.circular(16),
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(6.0),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(
+                                          _isLocationVisibleToCommuters
+                                              ? Icons.visibility
+                                              : Icons.visibility_off,
+                                          color: Colors.white,
+                                          size: 16,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+
+                        // Map refresher button positioned below the locator button
+                        Positioned(
+                          right: 16,
+                          top: 70, // Positioned below the locator button
+                          child: FloatingActionButton(
+                            heroTag: 'mapRefresher',
+                            onPressed: () {
+                              if (_mapKey.currentState != null) {
+                                _mapKey.currentState!.initializeLocation();
+                              }
+                            },
+                            backgroundColor: Colors.white,
+                            mini: true,
+                            child: const Icon(
+                              Icons.refresh,
+                              color: Colors.blue,
+                            ),
+                          ),
                         ),
                       ],
                     ),
