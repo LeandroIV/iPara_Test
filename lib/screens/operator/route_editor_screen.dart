@@ -5,6 +5,12 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../../models/route_model.dart';
 import '../../services/route_service.dart';
 import 'dart:math' as math;
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+import 'package:flutter_polyline_points/flutter_polyline_points.dart';
+
+// Google Maps API key
+const String _googleApiKey = "AIzaSyDtm_kDatDOlKtvEMCA5lcVRFyTM6f6NNk";
 
 /// Screen for creating or editing a route
 class RouteEditorScreen extends StatefulWidget {
@@ -19,7 +25,7 @@ class RouteEditorScreen extends StatefulWidget {
 class _RouteEditorScreenState extends State<RouteEditorScreen> {
   final _formKey = GlobalKey<FormState>();
   final RouteService _routeService = RouteService();
-  
+
   // Form controllers
   final _nameController = TextEditingController();
   final _descriptionController = TextEditingController();
@@ -28,22 +34,28 @@ class _RouteEditorScreenState extends State<RouteEditorScreen> {
   final _endPointController = TextEditingController();
   final _estimatedTimeController = TextEditingController();
   final _farePriceController = TextEditingController();
-  
+
   String _selectedPuvType = 'Jeepney';
   Color _selectedColor = Colors.amber;
   List<LatLng> _waypoints = [];
-  
+
   bool _isLoading = false;
   bool _isEditing = false;
-  
+
   // Google Maps controller
   GoogleMapController? _mapController;
   final Set<Marker> _markers = {};
   final Set<Polyline> _polylines = {};
-  
+
   // List of available PUV types
-  final List<String> _puvTypes = ['Jeepney', 'Bus', 'Multicab', 'Motorela'];
-  
+  final List<String> _puvTypes = [
+    'Jeepney',
+    'Bus',
+    'Multicab',
+    'Motorela',
+    'LA',
+  ];
+
   // List of available colors
   final List<Color> _availableColors = [
     Colors.red,
@@ -55,7 +67,7 @@ class _RouteEditorScreenState extends State<RouteEditorScreen> {
     Colors.orange,
     Colors.pink,
   ];
-  
+
   // Default map center (CDO, Philippines)
   static const LatLng _defaultCenter = LatLng(8.4542, 124.6319);
 
@@ -63,7 +75,7 @@ class _RouteEditorScreenState extends State<RouteEditorScreen> {
   void initState() {
     super.initState();
     _isEditing = widget.route != null;
-    
+
     if (_isEditing) {
       // Fill form with existing route data
       _nameController.text = widget.route!.name;
@@ -71,12 +83,13 @@ class _RouteEditorScreenState extends State<RouteEditorScreen> {
       _routeCodeController.text = widget.route!.routeCode;
       _startPointController.text = widget.route!.startPointName;
       _endPointController.text = widget.route!.endPointName;
-      _estimatedTimeController.text = widget.route!.estimatedTravelTime.toString();
+      _estimatedTimeController.text =
+          widget.route!.estimatedTravelTime.toString();
       _farePriceController.text = widget.route!.farePrice.toString();
       _selectedPuvType = widget.route!.puvType;
       _selectedColor = Color(widget.route!.colorValue);
       _waypoints = List.from(widget.route!.waypoints);
-      
+
       // Update map markers and polyline
       _updateMapVisualization();
     }
@@ -95,13 +108,54 @@ class _RouteEditorScreenState extends State<RouteEditorScreen> {
     super.dispose();
   }
 
+  // Method to get directions from the Google Directions API
+  Future<List<LatLng>> _getDirections(LatLng origin, LatLng destination) async {
+    final String url =
+        'https://maps.googleapis.com/maps/api/directions/json?'
+        'origin=${origin.latitude},${origin.longitude}'
+        '&destination=${destination.latitude},${destination.longitude}'
+        '&mode=driving'
+        '&key=$_googleApiKey';
+
+    try {
+      final response = await http.get(Uri.parse(url));
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+
+        if (data['status'] == 'OK') {
+          // Decode polyline points
+          final points = data['routes'][0]['overview_polyline']['points'];
+          final polylinePoints = PolylinePoints().decodePolyline(points);
+
+          // Convert to LatLng coordinates
+          return polylinePoints
+              .map((point) => LatLng(point.latitude, point.longitude))
+              .toList();
+        } else {
+          debugPrint('Directions API error: ${data['status']}');
+          // If error, return direct line between points as fallback
+          return [origin, destination];
+        }
+      } else {
+        debugPrint('Failed to fetch directions: ${response.statusCode}');
+        // Return direct line as fallback
+        return [origin, destination];
+      }
+    } catch (e) {
+      debugPrint('Error fetching directions: $e');
+      // Return direct line as fallback
+      return [origin, destination];
+    }
+  }
+
   // Update markers and polyline on the map
-  void _updateMapVisualization() {
+  Future<void> _updateMapVisualization() async {
     setState(() {
       // Clear existing markers and polylines
       _markers.clear();
       _polylines.clear();
-      
+
       // Add markers for each waypoint
       for (int i = 0; i < _waypoints.length; i++) {
         final waypoint = _waypoints[i];
@@ -110,10 +164,11 @@ class _RouteEditorScreenState extends State<RouteEditorScreen> {
             markerId: MarkerId('waypoint_$i'),
             position: waypoint,
             infoWindow: InfoWindow(
-              title: i == 0 
-                  ? 'Start: ${_startPointController.text}' 
-                  : i == _waypoints.length - 1 
-                      ? 'End: ${_endPointController.text}' 
+              title:
+                  i == 0
+                      ? 'Start: ${_startPointController.text}'
+                      : i == _waypoints.length - 1
+                      ? 'End: ${_endPointController.text}'
                       : 'Waypoint ${i + 1}',
             ),
             draggable: true,
@@ -126,20 +181,42 @@ class _RouteEditorScreenState extends State<RouteEditorScreen> {
           ),
         );
       }
-      
-      // Add polyline if there are at least 2 waypoints
-      if (_waypoints.length >= 2) {
+    });
+
+    // Add polyline if there are at least 2 waypoints
+    if (_waypoints.length >= 2) {
+      // Create a polyline that follows roads between waypoints
+      List<LatLng> allPolylinePoints = [];
+
+      // Get directions between each pair of waypoints
+      for (int i = 0; i < _waypoints.length - 1; i++) {
+        final List<LatLng> segmentPoints = await _getDirections(
+          _waypoints[i],
+          _waypoints[i + 1],
+        );
+
+        // Skip the first point of each segment (except the first segment)
+        // to avoid duplicate points
+        if (i > 0 && segmentPoints.isNotEmpty) {
+          allPolylinePoints.addAll(segmentPoints.sublist(1));
+        } else {
+          allPolylinePoints.addAll(segmentPoints);
+        }
+      }
+
+      // Add the polyline to the map
+      setState(() {
         _polylines.add(
           Polyline(
             polylineId: const PolylineId('route'),
-            points: _waypoints,
+            points: allPolylinePoints.isEmpty ? _waypoints : allPolylinePoints,
             color: _selectedColor,
             width: 5,
           ),
         );
-      }
-    });
-    
+      });
+    }
+
     // Move camera to show the route
     if (_waypoints.isNotEmpty && _mapController != null) {
       _fitMapToWaypoints();
@@ -149,74 +226,76 @@ class _RouteEditorScreenState extends State<RouteEditorScreen> {
   // Fit map to show all waypoints
   void _fitMapToWaypoints() {
     if (_waypoints.isEmpty || _mapController == null) return;
-    
+
     // Find the bounds of all waypoints
     double minLat = _waypoints.first.latitude;
     double maxLat = _waypoints.first.latitude;
     double minLng = _waypoints.first.longitude;
     double maxLng = _waypoints.first.longitude;
-    
+
     for (final point in _waypoints) {
       minLat = math.min(minLat, point.latitude);
       maxLat = math.max(maxLat, point.latitude);
       minLng = math.min(minLng, point.longitude);
       maxLng = math.max(maxLng, point.longitude);
     }
-    
+
     // Create a LatLngBounds object
     final bounds = LatLngBounds(
       southwest: LatLng(minLat, minLng),
       northeast: LatLng(maxLat, maxLng),
     );
-    
+
     // Move camera to show all waypoints with padding
-    _mapController!.animateCamera(
-      CameraUpdate.newLatLngBounds(bounds, 50.0),
-    );
+    _mapController!.animateCamera(CameraUpdate.newLatLngBounds(bounds, 50.0));
   }
 
   // Add a waypoint at the tapped location
-  void _addWaypoint(LatLng position) {
+  Future<void> _addWaypoint(LatLng position) async {
     setState(() {
       _waypoints.add(position);
-      _updateMapVisualization();
     });
+    // Update map with road-following polylines
+    await _updateMapVisualization();
   }
 
   // Remove a waypoint
-  void _removeWaypoint(int index) {
+  Future<void> _removeWaypoint(int index) async {
     setState(() {
       _waypoints.removeAt(index);
-      _updateMapVisualization();
     });
+    // Update map with road-following polylines
+    await _updateMapVisualization();
   }
 
   // Move a waypoint up in the list
-  void _moveWaypointUp(int index) {
+  Future<void> _moveWaypointUp(int index) async {
     if (index <= 0) return;
-    
+
     setState(() {
       final waypoint = _waypoints.removeAt(index);
       _waypoints.insert(index - 1, waypoint);
-      _updateMapVisualization();
     });
+    // Update map with road-following polylines
+    await _updateMapVisualization();
   }
 
   // Move a waypoint down in the list
-  void _moveWaypointDown(int index) {
+  Future<void> _moveWaypointDown(int index) async {
     if (index >= _waypoints.length - 1) return;
-    
+
     setState(() {
       final waypoint = _waypoints.removeAt(index);
       _waypoints.insert(index + 1, waypoint);
-      _updateMapVisualization();
     });
+    // Update map with road-following polylines
+    await _updateMapVisualization();
   }
 
   // Save the route to Firestore
   Future<void> _saveRoute() async {
     if (!_formKey.currentState!.validate()) return;
-    
+
     if (_waypoints.length < 2) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -226,11 +305,11 @@ class _RouteEditorScreenState extends State<RouteEditorScreen> {
       );
       return;
     }
-    
+
     setState(() {
       _isLoading = true;
     });
-    
+
     try {
       // Create route object
       final route = PUVRoute(
@@ -244,10 +323,10 @@ class _RouteEditorScreenState extends State<RouteEditorScreen> {
         endPointName: _endPointController.text,
         estimatedTravelTime: int.parse(_estimatedTimeController.text),
         farePrice: double.parse(_farePriceController.text),
-        colorValue: _selectedColor.value,
+        colorValue: _selectedColor.toARGB32(),
         isActive: true,
       );
-      
+
       if (_isEditing) {
         // Update existing route
         await FirebaseFirestore.instance
@@ -260,11 +339,15 @@ class _RouteEditorScreenState extends State<RouteEditorScreen> {
             .collection('routes')
             .add(route.toFirestore());
       }
-      
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(_isEditing ? 'Route updated successfully' : 'Route created successfully'),
+            content: Text(
+              _isEditing
+                  ? 'Route updated successfully'
+                  : 'Route created successfully',
+            ),
             backgroundColor: Colors.green,
           ),
         );
@@ -304,9 +387,10 @@ class _RouteEditorScreenState extends State<RouteEditorScreen> {
           ),
         ],
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : _buildForm(),
+      body:
+          _isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : _buildForm(),
     );
   }
 
@@ -322,7 +406,10 @@ class _RouteEditorScreenState extends State<RouteEditorScreen> {
               children: [
                 GoogleMap(
                   initialCameraPosition: CameraPosition(
-                    target: _waypoints.isNotEmpty ? _waypoints.first : _defaultCenter,
+                    target:
+                        _waypoints.isNotEmpty
+                            ? _waypoints.first
+                            : _defaultCenter,
                     zoom: 15,
                   ),
                   onMapCreated: (controller) {
@@ -348,7 +435,7 @@ class _RouteEditorScreenState extends State<RouteEditorScreen> {
                       borderRadius: BorderRadius.circular(8),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withOpacity(0.1),
+                          color: Colors.black.withAlpha(25),
                           blurRadius: 4,
                           offset: const Offset(0, 2),
                         ),
@@ -363,7 +450,7 @@ class _RouteEditorScreenState extends State<RouteEditorScreen> {
               ],
             ),
           ),
-          
+
           // Form fields
           Expanded(
             flex: 1,
@@ -375,13 +462,10 @@ class _RouteEditorScreenState extends State<RouteEditorScreen> {
                   // Route details section
                   const Text(
                     'Route Details',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 16),
-                  
+
                   // Route name
                   TextFormField(
                     controller: _nameController,
@@ -398,7 +482,7 @@ class _RouteEditorScreenState extends State<RouteEditorScreen> {
                     },
                   ),
                   const SizedBox(height: 16),
-                  
+
                   // Route code
                   TextFormField(
                     controller: _routeCodeController,
@@ -415,7 +499,7 @@ class _RouteEditorScreenState extends State<RouteEditorScreen> {
                     },
                   ),
                   const SizedBox(height: 16),
-                  
+
                   // PUV type dropdown
                   DropdownButtonFormField<String>(
                     value: _selectedPuvType,
@@ -423,12 +507,13 @@ class _RouteEditorScreenState extends State<RouteEditorScreen> {
                       labelText: 'PUV Type',
                       border: OutlineInputBorder(),
                     ),
-                    items: _puvTypes.map((type) {
-                      return DropdownMenuItem<String>(
-                        value: type,
-                        child: Text(type),
-                      );
-                    }).toList(),
+                    items:
+                        _puvTypes.map((type) {
+                          return DropdownMenuItem<String>(
+                            value: type,
+                            child: Text(type),
+                          );
+                        }).toList(),
                     onChanged: (value) {
                       if (value != null) {
                         setState(() {
@@ -444,7 +529,7 @@ class _RouteEditorScreenState extends State<RouteEditorScreen> {
                     },
                   ),
                   const SizedBox(height: 16),
-                  
+
                   // Route color
                   Row(
                     children: [
@@ -454,38 +539,40 @@ class _RouteEditorScreenState extends State<RouteEditorScreen> {
                         child: SingleChildScrollView(
                           scrollDirection: Axis.horizontal,
                           child: Row(
-                            children: _availableColors.map((color) {
-                              return GestureDetector(
-                                onTap: () {
-                                  setState(() {
-                                    _selectedColor = color;
-                                    _updateMapVisualization();
-                                  });
-                                },
-                                child: Container(
-                                  margin: const EdgeInsets.only(right: 8),
-                                  width: 32,
-                                  height: 32,
-                                  decoration: BoxDecoration(
-                                    color: color,
-                                    shape: BoxShape.circle,
-                                    border: Border.all(
-                                      color: _selectedColor == color
-                                          ? Colors.black
-                                          : Colors.transparent,
-                                      width: 2,
+                            children:
+                                _availableColors.map((color) {
+                                  return GestureDetector(
+                                    onTap: () {
+                                      setState(() {
+                                        _selectedColor = color;
+                                        _updateMapVisualization();
+                                      });
+                                    },
+                                    child: Container(
+                                      margin: const EdgeInsets.only(right: 8),
+                                      width: 32,
+                                      height: 32,
+                                      decoration: BoxDecoration(
+                                        color: color,
+                                        shape: BoxShape.circle,
+                                        border: Border.all(
+                                          color:
+                                              _selectedColor == color
+                                                  ? Colors.black
+                                                  : Colors.transparent,
+                                          width: 2,
+                                        ),
+                                      ),
                                     ),
-                                  ),
-                                ),
-                              );
-                            }).toList(),
+                                  );
+                                }).toList(),
                           ),
                         ),
                       ),
                     ],
                   ),
                   const SizedBox(height: 16),
-                  
+
                   // Start and end points
                   Row(
                     children: [
@@ -525,7 +612,7 @@ class _RouteEditorScreenState extends State<RouteEditorScreen> {
                     ],
                   ),
                   const SizedBox(height: 16),
-                  
+
                   // Travel time and fare
                   Row(
                     children: [
@@ -573,29 +660,27 @@ class _RouteEditorScreenState extends State<RouteEditorScreen> {
                     ],
                   ),
                   const SizedBox(height: 16),
-                  
+
                   // Description
                   TextFormField(
                     controller: _descriptionController,
                     decoration: const InputDecoration(
                       labelText: 'Description',
-                      hintText: 'e.g., Route from Carmen to Divisoria via Corrales Avenue',
+                      hintText:
+                          'e.g., Route from Carmen to Divisoria via Corrales Avenue',
                       border: OutlineInputBorder(),
                     ),
                     maxLines: 2,
                   ),
                   const SizedBox(height: 24),
-                  
+
                   // Waypoints list
                   const Text(
                     'Waypoints',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 8),
-                  
+
                   if (_waypoints.isEmpty)
                     const Padding(
                       padding: EdgeInsets.symmetric(vertical: 16),
@@ -618,11 +703,11 @@ class _RouteEditorScreenState extends State<RouteEditorScreen> {
                           margin: const EdgeInsets.only(bottom: 8),
                           child: ListTile(
                             title: Text(
-                              index == 0 
-                                  ? 'Start: ${_startPointController.text}' 
-                                  : index == _waypoints.length - 1 
-                                      ? 'End: ${_endPointController.text}' 
-                                      : 'Waypoint ${index + 1}',
+                              index == 0
+                                  ? 'Start: ${_startPointController.text}'
+                                  : index == _waypoints.length - 1
+                                  ? 'End: ${_endPointController.text}'
+                                  : 'Waypoint ${index + 1}',
                             ),
                             subtitle: Text(
                               'Lat: ${waypoint.latitude.toStringAsFixed(6)}, '
@@ -640,14 +725,18 @@ class _RouteEditorScreenState extends State<RouteEditorScreen> {
                               children: [
                                 IconButton(
                                   icon: const Icon(Icons.arrow_upward),
-                                  onPressed: index > 0 ? () => _moveWaypointUp(index) : null,
+                                  onPressed:
+                                      index > 0
+                                          ? () => _moveWaypointUp(index)
+                                          : null,
                                   tooltip: 'Move Up',
                                 ),
                                 IconButton(
                                   icon: const Icon(Icons.arrow_downward),
-                                  onPressed: index < _waypoints.length - 1 
-                                      ? () => _moveWaypointDown(index) 
-                                      : null,
+                                  onPressed:
+                                      index < _waypoints.length - 1
+                                          ? () => _moveWaypointDown(index)
+                                          : null,
                                   tooltip: 'Move Down',
                                 ),
                                 IconButton(

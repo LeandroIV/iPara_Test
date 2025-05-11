@@ -1,6 +1,7 @@
 import 'dart:math';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:flutter/foundation.dart';
 import '../models/route_model.dart';
 
 /// Service class for handling PUV route data
@@ -24,7 +25,7 @@ class RouteService {
           .map((doc) => PUVRoute.fromFirestore(doc))
           .toList();
     } catch (e) {
-      print('Error fetching routes: $e');
+      debugPrint('Error fetching routes: $e');
       return [];
     }
   }
@@ -32,18 +33,36 @@ class RouteService {
   /// Fetch routes by PUV type
   Future<List<PUVRoute>> getRoutesByType(String puvType) async {
     try {
+      // Normalize PUV type to ensure consistent capitalization
+      String normalizedPuvType = puvType;
+      if (normalizedPuvType.isNotEmpty) {
+        normalizedPuvType =
+            normalizedPuvType[0].toUpperCase() +
+            normalizedPuvType.substring(1).toLowerCase();
+      }
+
       final querySnapshot =
           await _routesCollection
-              .where('puvType', isEqualTo: puvType)
+              .where('puvType', isEqualTo: normalizedPuvType)
               .where('isActive', isEqualTo: true)
               .orderBy('routeCode')
               .get();
+
+      // If no results with normalized type, try getting all routes and filter manually
+      if (querySnapshot.docs.isEmpty) {
+        final allRoutes = await getAllRoutes();
+        return allRoutes
+            .where(
+              (route) => route.puvType.toLowerCase() == puvType.toLowerCase(),
+            )
+            .toList();
+      }
 
       return querySnapshot.docs
           .map((doc) => PUVRoute.fromFirestore(doc))
           .toList();
     } catch (e) {
-      print('Error fetching routes by type: $e');
+      debugPrint('Error fetching routes by type: $e');
       return [];
     }
   }
@@ -58,7 +77,7 @@ class RouteService {
       }
       return null;
     } catch (e) {
-      print('Error fetching route by ID: $e');
+      debugPrint('Error fetching route by ID: $e');
       return null;
     }
   }
@@ -77,7 +96,7 @@ class RouteService {
       }
       return null;
     } catch (e) {
-      print('Error fetching route by code: $e');
+      debugPrint('Error fetching route by code: $e');
       return null;
     }
   }
@@ -114,7 +133,7 @@ class RouteService {
         return passesNearStart && passesNearEnd;
       }).toList();
     } catch (e) {
-      print('Error finding routes between points: $e');
+      debugPrint('Error finding routes between points: $e');
       return [];
     }
   }
@@ -249,6 +268,93 @@ class RouteService {
         estimatedTravelTime: 35,
         farePrice: 14.0,
         colorValue: 0xFFE91E63, // Pink
+        isActive: true,
+      ),
+      PUVRoute(
+        id: 'LA',
+        name: 'LA - Lapasan to Divisoria',
+        description: 'Route from Lapasan to Divisoria',
+        puvType: 'Jeepney',
+        routeCode: 'LA',
+        waypoints: [
+          const LatLng(8.479595, 124.649240), // Cogon
+          const LatLng(8.481712, 124.637232), // Carmen terminal
+          const LatLng(8.490123, 124.652781), // Lapasan
+          const LatLng(8.498177, 124.660786), // Pier
+          const LatLng(8.490123, 124.652781), // Lapasan
+          const LatLng(8.481712, 124.637232), // Carmen terminal
+          const LatLng(8.479595, 124.649240), // Cogon
+        ],
+        startPointName: 'Pier',
+        endPointName: 'Cogon',
+        estimatedTravelTime: 45,
+        farePrice: 15.0,
+        colorValue: 0xFF9C27B0, // Purple
+        isActive: true,
+      ),
+      // New Bus Route: R3 - Lapasan to Cogon Market (Loop)
+      PUVRoute(
+        id: 'R3',
+        name: 'R3 - Lapasan-Cogon Market (Loop)',
+        description: 'Route from Lapasan to Cogon Market and back in a loop',
+        puvType: 'Bus',
+        routeCode: 'R3',
+        waypoints: [
+          const LatLng(8.490123, 124.652781), // Lapasan
+          const LatLng(8.486028, 124.650684), // Gaisano
+          const LatLng(8.479595, 124.649240), // Cogon Market
+          const LatLng(8.477595, 124.653591), // Yacapin
+          const LatLng(8.485010, 124.647179), // Velez
+          const LatLng(8.490123, 124.652781), // Back to Lapasan
+        ],
+        startPointName: 'Lapasan',
+        endPointName: 'Cogon Market',
+        estimatedTravelTime: 40,
+        farePrice: 15.0,
+        colorValue: 0xFF3F51B5, // Indigo
+        isActive: true,
+      ),
+      // New Multicab Route: RB - Pier to Macabalan
+      PUVRoute(
+        id: 'RB',
+        name: 'RB - Pier-Puregold-Cogon-Velez-Julio Pacana-Macabalan',
+        description: 'Route from Pier through city center to Macabalan',
+        puvType: 'Multicab',
+        routeCode: 'RB',
+        waypoints: [
+          const LatLng(8.498177, 124.660786), // Pier
+          const LatLng(8.486684, 124.650807), // Puregold/Gaisano
+          const LatLng(8.479595, 124.649240), // Cogon
+          const LatLng(8.485010, 124.647179), // Velez
+          const LatLng(8.498178, 124.660057), // Julio Pacana St
+          const LatLng(8.503708, 124.659001), // Macabalan
+        ],
+        startPointName: 'Pier',
+        endPointName: 'Macabalan',
+        estimatedTravelTime: 35,
+        farePrice: 12.0,
+        colorValue: 0xFFFF5722, // Deep Orange
+        isActive: true,
+      ),
+      // New Motorela Route: BLUE - Agora to Cogon (Loop)
+      PUVRoute(
+        id: 'BLUE',
+        name: 'BLUE - Agora-Osmena-Cogon (Loop)',
+        description: 'Route from Agora through Osmena to Cogon in a loop',
+        puvType: 'Motorela',
+        routeCode: 'BLUE',
+        waypoints: [
+          const LatLng(8.488257, 124.657648), // Agora Market
+          const LatLng(8.488737, 124.654004), // Osmena
+          const LatLng(8.479595, 124.649240), // Cogon
+          const LatLng(8.484704, 124.656401), // USTP
+          const LatLng(8.488257, 124.657648), // Back to Agora
+        ],
+        startPointName: 'Agora',
+        endPointName: 'Cogon',
+        estimatedTravelTime: 25,
+        farePrice: 10.0,
+        colorValue: 0xFF03A9F4, // Light Blue
         isActive: true,
       ),
     ];

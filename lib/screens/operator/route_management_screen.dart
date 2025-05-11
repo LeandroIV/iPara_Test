@@ -45,7 +45,7 @@ class _RouteManagementScreenState extends State<RouteManagementScreen> {
       setState(() {
         _isLoading = false;
       });
-      
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -63,7 +63,10 @@ class _RouteManagementScreenState extends State<RouteManagementScreen> {
       return _routes;
     }
     return _routes
-        .where((route) => route.puvType == _filterPuvType)
+        .where(
+          (route) =>
+              route.puvType.toLowerCase() == _filterPuvType!.toLowerCase(),
+        )
         .toList();
   }
 
@@ -71,9 +74,7 @@ class _RouteManagementScreenState extends State<RouteManagementScreen> {
   void _createNewRoute() {
     Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (context) => const RouteEditorScreen(),
-      ),
+      MaterialPageRoute(builder: (context) => const RouteEditorScreen()),
     ).then((_) => _loadRoutes()); // Reload routes when returning
   }
 
@@ -81,9 +82,7 @@ class _RouteManagementScreenState extends State<RouteManagementScreen> {
   void _editRoute(PUVRoute route) {
     Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (context) => RouteEditorScreen(route: route),
-      ),
+      MaterialPageRoute(builder: (context) => RouteEditorScreen(route: route)),
     ).then((_) => _loadRoutes()); // Reload routes when returning
   }
 
@@ -92,27 +91,28 @@ class _RouteManagementScreenState extends State<RouteManagementScreen> {
     // Show confirmation dialog
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Delete Route'),
-        content: Text(
-          'Are you sure you want to delete the route "${route.name}"? '
-          'This action cannot be undone.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
-              foregroundColor: Colors.white,
+      builder:
+          (context) => AlertDialog(
+            title: const Text('Delete Route'),
+            content: Text(
+              'Are you sure you want to delete the route "${route.name}"? '
+              'This action cannot be undone.',
             ),
-            child: const Text('Delete'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(context, true),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.red,
+                  foregroundColor: Colors.white,
+                ),
+                child: const Text('Delete'),
+              ),
+            ],
           ),
-        ],
-      ),
     );
 
     if (confirmed != true) return;
@@ -128,10 +128,10 @@ class _RouteManagementScreenState extends State<RouteManagementScreen> {
           .collection('routes')
           .doc(route.id)
           .update({'isActive': false});
-      
+
       // Reload routes
       await _loadRoutes();
-      
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -145,7 +145,7 @@ class _RouteManagementScreenState extends State<RouteManagementScreen> {
       setState(() {
         _isLoading = false;
       });
-      
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -168,7 +168,10 @@ class _RouteManagementScreenState extends State<RouteManagementScreen> {
           // Filter dropdown
           DropdownButton<String?>(
             value: _filterPuvType,
-            hint: const Text('Filter by type', style: TextStyle(color: Colors.white)),
+            hint: const Text(
+              'Filter by type',
+              style: TextStyle(color: Colors.white),
+            ),
             dropdownColor: Colors.black87,
             underline: Container(),
             icon: const Icon(Icons.filter_list, color: Colors.amber),
@@ -182,18 +185,24 @@ class _RouteManagementScreenState extends State<RouteManagementScreen> {
                 value: null,
                 child: Text('All Types', style: TextStyle(color: Colors.white)),
               ),
-              ..._puvTypes.map((type) => DropdownMenuItem<String>(
-                    value: type,
-                    child: Text(type, style: const TextStyle(color: Colors.white)),
-                  )),
+              ..._puvTypes.map(
+                (type) => DropdownMenuItem<String>(
+                  value: type,
+                  child: Text(
+                    type,
+                    style: const TextStyle(color: Colors.white),
+                  ),
+                ),
+              ),
             ],
           ),
           const SizedBox(width: 16),
         ],
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : filteredRoutes.isEmpty
+      body:
+          _isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : filteredRoutes.isEmpty
               ? _buildEmptyState()
               : _buildRouteList(),
       floatingActionButton: FloatingActionButton(
@@ -210,11 +219,7 @@ class _RouteManagementScreenState extends State<RouteManagementScreen> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Icon(
-            Icons.route,
-            size: 80,
-            color: Colors.grey,
-          ),
+          const Icon(Icons.route, size: 80, color: Colors.grey),
           const SizedBox(height: 16),
           Text(
             _filterPuvType == null

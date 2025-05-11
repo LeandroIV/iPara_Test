@@ -71,14 +71,18 @@ class HomeMapWidgetState extends State<HomeMapWidget> {
   void initState() {
     super.initState();
 
-    // Delay map initialization slightly to ensure widget is fully mounted
-    Future.delayed(const Duration(milliseconds: 300), () {
+    // Delay map initialization with a longer delay to ensure widget is fully mounted
+    // This helps prevent the map from loading incorrectly on first launch
+    Future.delayed(const Duration(milliseconds: 800), () {
       if (mounted) {
-        initializeLocation();
-        // For Android/iOS, ensure the Google Maps services are initialized
-        _checkGooglePlayServices();
-        // Initialize the location service
-        _initializeLocationService();
+        // First check Google Play Services before initializing location
+        _checkGooglePlayServices().then((_) {
+          // Initialize the location service
+          _initializeLocationService().then((_) {
+            // Finally initialize location after services are ready
+            initializeLocation();
+          });
+        });
       }
     });
   }
@@ -158,8 +162,15 @@ class HomeMapWidgetState extends State<HomeMapWidget> {
 
   /// Start tracking nearby commuters based on PUV type
   void startTrackingCommuters(String? puvType) {
+    // Debug print to track method call
+    debugPrint('startTrackingCommuters called with PUV type: $puvType');
+
     // Cancel any existing subscription
-    _commutersSubscription?.cancel();
+    if (_commutersSubscription != null) {
+      debugPrint('Cancelling existing commuter subscription');
+      _commutersSubscription?.cancel();
+      _commutersSubscription = null;
+    }
 
     // Update selected PUV type
     _selectedPuvType = puvType;
@@ -169,6 +180,7 @@ class HomeMapWidgetState extends State<HomeMapWidget> {
 
     // If no PUV type is selected, clear commuters from map
     if (puvType == null) {
+      debugPrint('No PUV type selected, clearing commuter markers');
       _clearCommuterMarkers();
       setState(() {
         _showCommuters = false;
@@ -183,13 +195,39 @@ class HomeMapWidgetState extends State<HomeMapWidget> {
 
     // Start tracking nearby commuters
     if (_userLocation != null) {
-      _commutersSubscription = _locationService
-          .getNearbyCommuters(
-            center: _userLocation!,
-            radiusKm: 5.0,
-            puvType: puvType,
-          )
-          .listen(_updateCommuterMarkers);
+      debugPrint(
+        'Setting up subscription to track commuters with PUV type: $puvType at location: ${_userLocation!.latitude}, ${_userLocation!.longitude}',
+      );
+
+      // Force a delay to ensure the subscription is properly set up
+      Future.delayed(Duration(milliseconds: 500), () {
+        if (!mounted) return;
+
+        _commutersSubscription = _locationService
+            .getNearbyCommuters(
+              center: _userLocation!,
+              radiusKm: 5.0,
+              puvType: puvType,
+            )
+            .listen((commuters) {
+              if (!mounted) return;
+
+              debugPrint(
+                'Received ${commuters.length} commuters from subscription for PUV type: $puvType',
+              );
+
+              // Additional debug info for each commuter
+              for (var commuter in commuters) {
+                debugPrint(
+                  'Commuter details: ${commuter.userId}, PUV type: ${commuter.selectedPuvType}, Location: ${commuter.location.latitude}, ${commuter.location.longitude}',
+                );
+              }
+
+              _updateCommuterMarkers(commuters);
+            });
+      });
+    } else {
+      debugPrint('User location is null, cannot track commuters');
     }
 
     // Notify parent widget if callback is provided
@@ -217,6 +255,85 @@ class HomeMapWidgetState extends State<HomeMapWidget> {
       return;
     }
 
+    // Get icons for each PUV type to reuse for all markers
+    Map<String, BitmapDescriptor> puvIcons = {};
+
+    // List of PUV types we need to load icons for
+    Set<String> puvTypes = drivers.map((d) => d.puvType.toLowerCase()).toSet();
+
+    // Load all icons first
+    for (final puvType in puvTypes) {
+      try {
+        // Use custom PUV icons with highlight for map markers
+        String iconPath;
+        switch (puvType) {
+          case 'bus':
+            iconPath = 'assets/icons/bus_highlight.png';
+            break;
+          case 'jeepney':
+            iconPath = 'assets/icons/jeepney_highlight.png';
+            break;
+          case 'multicab':
+            iconPath = 'assets/icons/multicab_highlight.png';
+            break;
+          case 'motorela':
+            iconPath = 'assets/icons/motorela_highlight.png';
+            break;
+          default:
+            // Skip to fallback for unknown types
+            continue;
+        }
+
+        debugPrint(
+          'Pre-loading icon for PUV type: $puvType from path: $iconPath',
+        );
+
+        // Pre-cache the image to ensure it's loaded
+        final ImageConfiguration config = ImageConfiguration(
+          size: Size(64, 64),
+        );
+        final AssetImage assetImage = AssetImage(iconPath);
+
+        // Force the image to be loaded
+        await precacheImage(assetImage, context);
+
+        // Load the custom icon
+        final icon = await BitmapDescriptor.fromAssetImage(config, iconPath);
+        puvIcons[puvType] = icon;
+        debugPrint('Successfully loaded icon for PUV type: $puvType');
+      } catch (e) {
+        debugPrint('Error loading icon for PUV type $puvType: $e');
+        // Use fallback colored markers
+        switch (puvType) {
+          case 'bus':
+            puvIcons[puvType] = BitmapDescriptor.defaultMarkerWithHue(
+              BitmapDescriptor.hueBlue,
+            );
+            break;
+          case 'jeepney':
+            puvIcons[puvType] = BitmapDescriptor.defaultMarkerWithHue(
+              BitmapDescriptor.hueYellow,
+            );
+            break;
+          case 'multicab':
+            puvIcons[puvType] = BitmapDescriptor.defaultMarkerWithHue(
+              BitmapDescriptor.hueGreen,
+            );
+            break;
+          case 'motorela':
+            puvIcons[puvType] = BitmapDescriptor.defaultMarkerWithHue(
+              BitmapDescriptor.hueRed,
+            );
+            break;
+          default:
+            puvIcons[puvType] = BitmapDescriptor.defaultMarkerWithHue(
+              BitmapDescriptor.hueViolet,
+            );
+        }
+      }
+    }
+
+    // Now create markers for each driver
     for (final driver in drivers) {
       // Create a unique marker ID
       final markerId = MarkerId('driver_${driver.userId}');
@@ -236,8 +353,18 @@ class HomeMapWidgetState extends State<HomeMapWidget> {
         onTap: () => _showDriverDetails(driver),
       );
 
-      // Get the icon for this driver
-      final icon = await _getDriverIcon(driver.iconType ?? driver.puvType);
+      // Get the icon for this PUV type
+      final puvType = driver.puvType.toLowerCase();
+      BitmapDescriptor icon;
+
+      if (puvIcons.containsKey(puvType)) {
+        icon = puvIcons[puvType]!;
+      } else {
+        // Fallback to default marker if no icon was loaded for this type
+        icon = BitmapDescriptor.defaultMarkerWithHue(
+          BitmapDescriptor.hueViolet,
+        );
+      }
 
       // Create the marker with fixed rotation (no rotation)
       final marker = Marker(
@@ -294,8 +421,16 @@ class HomeMapWidgetState extends State<HomeMapWidget> {
     }
 
     // Get the commuter icon once to reuse for all markers
-    final commuterIcon = await _getCommuterIcon();
-    debugPrint('Successfully loaded commuter icon for all markers');
+    BitmapDescriptor commuterIcon;
+    try {
+      commuterIcon = await _getCommuterIcon();
+      debugPrint('Successfully loaded commuter icon for all markers');
+    } catch (e) {
+      debugPrint('Error loading commuter icon: $e, using default marker');
+      commuterIcon = BitmapDescriptor.defaultMarkerWithHue(
+        BitmapDescriptor.hueAzure,
+      );
+    }
 
     for (final commuter in commuters) {
       // Create a unique marker ID
@@ -351,27 +486,11 @@ class HomeMapWidgetState extends State<HomeMapWidget> {
 
   /// Clear driver markers from the map
   void _clearDriverMarkers() {
-    // Count driver markers before removal
-    int driverMarkerCount =
-        _markers
-            .where((marker) => marker.markerId.value.startsWith('driver_'))
-            .length;
-
-    debugPrint('Clearing $driverMarkerCount driver markers from the map');
-
     setState(() {
       _markers.removeWhere(
         (marker) => marker.markerId.value.startsWith('driver_'),
       );
     });
-
-    // Verify markers were removed
-    int remainingDriverMarkers =
-        _markers
-            .where((marker) => marker.markerId.value.startsWith('driver_'))
-            .length;
-
-    debugPrint('After clearing, $remainingDriverMarkers driver markers remain');
   }
 
   /// Clear commuter markers from the map
@@ -592,87 +711,25 @@ class HomeMapWidgetState extends State<HomeMapWidget> {
     );
   }
 
-  /// Get the appropriate icon for a driver based on PUV type
-  Future<BitmapDescriptor> _getDriverIcon(String puvType) async {
-    // Use custom PUV icons with highlight for map markers
-    String iconPath;
-    switch (puvType.toLowerCase()) {
-      case 'bus':
-        iconPath = 'assets/icons/bus_highlight.png';
-        break;
-      case 'jeepney':
-        iconPath = 'assets/icons/jeepney_highlight.png';
-        break;
-      case 'multicab':
-        iconPath = 'assets/icons/multicab_highlight.png';
-        break;
-      case 'motorela':
-        iconPath = 'assets/icons/motorela_highlight.png';
-        break;
-      default:
-        // Fallback to default marker if no matching icon
-        return BitmapDescriptor.defaultMarkerWithHue(
-          BitmapDescriptor.hueViolet,
-        );
-    }
 
-    try {
-      // Pre-cache the image to ensure it's loaded
-      final AssetImage assetImage = AssetImage(iconPath);
-      await precacheImage(assetImage, context);
-
-      // Load the custom icon using the non-deprecated method with 64x64 size
-      final icon = await BitmapDescriptor.fromAssetImage(
-        const ImageConfiguration(size: Size(64, 64)),
-        iconPath,
-      );
-
-      debugPrint(
-        'Successfully loaded icon for PUV type: ${puvType.toLowerCase()}',
-      );
-      return icon;
-    } catch (e) {
-      // Fallback to colored markers if custom icon fails to load
-      debugPrint('Error loading PUV icon: $e, using default marker instead');
-
-      // Select the appropriate fallback icon based on PUV type
-      switch (puvType.toLowerCase()) {
-        case 'bus':
-          return BitmapDescriptor.defaultMarkerWithHue(
-            BitmapDescriptor.hueBlue,
-          );
-        case 'jeepney':
-          return BitmapDescriptor.defaultMarkerWithHue(
-            BitmapDescriptor.hueYellow,
-          );
-        case 'multicab':
-          return BitmapDescriptor.defaultMarkerWithHue(
-            BitmapDescriptor.hueGreen,
-          );
-        case 'motorela':
-          return BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed);
-        default:
-          return BitmapDescriptor.defaultMarkerWithHue(
-            BitmapDescriptor.hueViolet,
-          );
-      }
-    }
   }
 
   /// Get the icon for a commuter
   Future<BitmapDescriptor> _getCommuterIcon() async {
     try {
-      // Pre-cache the image to ensure it's loaded
+      // Use the fromAssetImage method since it's still supported
       final String iconPath = 'assets/icons/person.png';
+      debugPrint('Attempting to load commuter icon from $iconPath');
+
+      // Pre-cache the image to ensure it's loaded
+      final ImageConfiguration config = ImageConfiguration(size: Size(48, 48));
       final AssetImage assetImage = AssetImage(iconPath);
+
+      // Force the image to be loaded
       await precacheImage(assetImage, context);
+      debugPrint('Commuter image precached successfully: $iconPath');
 
-      // Load the custom icon using the non-deprecated method with 64x64 size
-      final icon = await BitmapDescriptor.fromAssetImage(
-        const ImageConfiguration(size: Size(64, 64)),
-        iconPath,
-      );
-
+      final icon = await BitmapDescriptor.fromAssetImage(config, iconPath);
       debugPrint('Successfully loaded commuter icon');
       return icon;
     } catch (e) {
@@ -680,7 +737,8 @@ class HomeMapWidgetState extends State<HomeMapWidget> {
       debugPrint(
         'Error loading commuter icon: $e, using default marker instead',
       );
-      return BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen);
+      // Use a more visible color for the fallback marker
+      return BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure);
     }
   }
 
@@ -695,6 +753,7 @@ class HomeMapWidgetState extends State<HomeMapWidget> {
         return Colors.green;
       case 'motorela':
         return Colors.red;
+
       default:
         return Colors.grey;
     }
@@ -710,6 +769,7 @@ class HomeMapWidgetState extends State<HomeMapWidget> {
         return Icons.airport_shuttle;
       case 'motorela':
         return Icons.motorcycle;
+
       default:
         return Icons.directions_car;
     }
@@ -1513,19 +1573,38 @@ class HomeMapWidgetState extends State<HomeMapWidget> {
 
                 // Apply map styling to ensure proper loading
                 try {
-                  // Wait a moment to ensure map is properly initialized
-                  await Future.delayed(const Duration(milliseconds: 500));
+                  // Wait longer to ensure map is properly initialized
+                  // This helps prevent the map from appearing zoomed or blank on first load
+                  await Future.delayed(const Duration(milliseconds: 1000));
 
-                  // Force map to refresh by changing zoom slightly
+                  // Force map to refresh with multiple zoom changes
+                  // This technique helps "wake up" the Google Maps renderer
                   if (mounted && _mapController != null) {
-                    final currentZoom = await _mapController!.getZoomLevel();
-                    await _mapController!.animateCamera(
-                      CameraUpdate.zoomTo(currentZoom + 0.1),
-                    );
-                    await Future.delayed(const Duration(milliseconds: 300));
-                    await _mapController!.animateCamera(
-                      CameraUpdate.zoomTo(currentZoom),
-                    );
+                    try {
+                      // Get current zoom level
+                      final currentZoom = await _mapController!.getZoomLevel();
+
+                      // Zoom out slightly
+                      await _mapController!.animateCamera(
+                        CameraUpdate.zoomTo(currentZoom - 0.5),
+                      );
+                      await Future.delayed(const Duration(milliseconds: 300));
+
+                      // Zoom back in
+                      await _mapController!.animateCamera(
+                        CameraUpdate.zoomTo(currentZoom),
+                      );
+                      await Future.delayed(const Duration(milliseconds: 300));
+
+                      // Move camera slightly to force a redraw
+                      if (_userLocation != null) {
+                        await _mapController!.animateCamera(
+                          CameraUpdate.newLatLng(_userLocation!),
+                        );
+                      }
+                    } catch (e) {
+                      debugPrint('Error during map refresh: $e');
+                    }
                   }
 
                   // Center on user location if available

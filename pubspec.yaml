@@ -93,6 +93,8 @@ flutter_launcher_icons:
   image_path: "assets/logo.png"
   adaptive_icon_background: "#000000" # Black background
   adaptive_icon_foreground: "assets/logo.png"
+  adaptive_icon_padding: true # Add padding to prevent zooming
+  min_sdk_android: 21 # Ensure compatibility with adaptive icons
   remove_alpha_ios: true
   web:
     generate: false

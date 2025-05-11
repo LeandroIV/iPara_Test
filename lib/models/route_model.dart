@@ -76,11 +76,18 @@ class PUVRoute {
           return const LatLng(0, 0);
         }).toList();
 
+    // Normalize PUV type to ensure consistent capitalization
+    String puvType = data['puvType'] ?? 'Jeepney';
+    // Capitalize first letter and make rest lowercase
+    if (puvType.isNotEmpty) {
+      puvType = puvType[0].toUpperCase() + puvType.substring(1).toLowerCase();
+    }
+
     return PUVRoute(
       id: doc.id,
       name: data['name'] ?? 'Unnamed Route',
       description: data['description'] ?? '',
-      puvType: data['puvType'] ?? 'Jeepney',
+      puvType: puvType, // Use normalized PUV type
       routeCode: data['routeCode'] ?? '',
       waypoints: routeWaypoints,
       startPointName: data['startPointName'] ?? 'Start',
@@ -105,10 +112,18 @@ class PUVRoute {
             )
             .toList();
 
+    // Normalize PUV type to ensure consistent capitalization
+    String normalizedPuvType = puvType;
+    if (normalizedPuvType.isNotEmpty) {
+      normalizedPuvType =
+          normalizedPuvType[0].toUpperCase() +
+          normalizedPuvType.substring(1).toLowerCase();
+    }
+
     return {
       'name': name,
       'description': description,
-      'puvType': puvType,
+      'puvType': normalizedPuvType, // Use normalized PUV type
       'routeCode': routeCode,
       'waypoints': firestoreWaypoints,
       'startPointName': startPointName,

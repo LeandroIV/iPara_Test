@@ -27,7 +27,7 @@ class _HomeScreenState extends State<HomeScreen>
   // Placeholder data for PUV counts
   final Map<String, int> puvCounts = {
     'Bus': 12,
-    'Jeepney': 45,
+    'Jeepney': 63, // Increased to include LA routes
     'Multicab': 23,
     'Motorela': 15,
   };

@@ -18,17 +18,24 @@ class RoleSelectionScreen extends StatelessWidget {
         ),
         child: SafeArea(
           child: Padding(
-            padding: const EdgeInsets.all(24.0),
+            padding: const EdgeInsets.symmetric(
+              horizontal: 20.0,
+              vertical: 16.0,
+            ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const SizedBox(height: 40),
+                const SizedBox(height: 20), // Reduced top spacing
                 // Logo and heading
                 Center(
                   child: Column(
                     children: [
-                      Image.asset('assets/logo.png', width: 100, height: 100),
-                      const SizedBox(height: 24),
+                      Image.asset(
+                        'assets/logo.png',
+                        width: 80,
+                        height: 80,
+                      ), // Smaller logo
+                      const SizedBox(height: 16), // Reduced spacing
                       const Text(
                         'How will you use iPara?',
                         style: TextStyle(
@@ -37,7 +44,7 @@ class RoleSelectionScreen extends StatelessWidget {
                           fontWeight: FontWeight.bold,
                         ),
                       ),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: 8), // Reduced spacing
                       const Text(
                         'Select your role to get started',
                         style: TextStyle(color: Colors.white70, fontSize: 16),
@@ -46,8 +53,7 @@ class RoleSelectionScreen extends StatelessWidget {
                     ],
                   ),
                 ),
-                const SizedBox(height: 40),
-
+                const SizedBox(height: 24), // Reduced spacing
                 // Role selection cards
                 Expanded(
                   child: SingleChildScrollView(
@@ -58,13 +64,13 @@ class RoleSelectionScreen extends StatelessWidget {
                           role: UserRole.commuter,
                           color: Colors.amber,
                         ),
-                        const SizedBox(height: 16),
+                        const SizedBox(height: 10), // Reduced spacing
                         _buildRoleCard(
                           context,
                           role: UserRole.driver,
                           color: Colors.blue,
                         ),
-                        const SizedBox(height: 16),
+                        const SizedBox(height: 10), // Reduced spacing
                         _buildRoleCard(
                           context,
                           role: UserRole.operator,
@@ -78,10 +84,15 @@ class RoleSelectionScreen extends StatelessWidget {
                 // Can change later note
                 const Center(
                   child: Padding(
-                    padding: EdgeInsets.symmetric(vertical: 16.0),
+                    padding: EdgeInsets.symmetric(
+                      vertical: 8.0,
+                    ), // Reduced padding
                     child: Text(
                       'You can change your role later in settings',
-                      style: TextStyle(color: Colors.white54, fontSize: 14),
+                      style: TextStyle(
+                        color: Colors.white54,
+                        fontSize: 12,
+                      ), // Smaller font
                     ),
                   ),
                 ),
@@ -100,28 +111,31 @@ class RoleSelectionScreen extends StatelessWidget {
   }) {
     return Card(
       elevation: 4,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: InkWell(
         onTap: () => _selectRole(context, role),
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(12),
         child: Container(
-          padding: const EdgeInsets.all(20),
+          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(12),
             gradient: LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
-              colors: [color.withOpacity(0.8), color.withOpacity(0.6)],
+              colors: [
+                color.withAlpha(204),
+                color.withAlpha(153),
+              ], // Using withAlpha instead of withOpacity
             ),
           ),
           child: Row(
             children: [
               CircleAvatar(
                 backgroundColor: Colors.white,
-                radius: 28,
-                child: Icon(role.icon, color: color, size: 32),
+                radius: 24, // Smaller avatar
+                child: Icon(role.icon, color: color, size: 28), // Smaller icon
               ),
-              const SizedBox(width: 20),
+              const SizedBox(width: 16), // Reduced spacing
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -130,19 +144,26 @@ class RoleSelectionScreen extends StatelessWidget {
                       role.name,
                       style: const TextStyle(
                         color: Colors.white,
-                        fontSize: 20,
+                        fontSize: 18, // Smaller font
                         fontWeight: FontWeight.bold,
                       ),
                     ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 4), // Reduced spacing
                     Text(
                       role.description,
-                      style: const TextStyle(color: Colors.white, fontSize: 14),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 13,
+                      ), // Smaller font
                     ),
                   ],
                 ),
               ),
-              const Icon(Icons.arrow_forward_ios, color: Colors.white70),
+              const Icon(
+                Icons.arrow_forward_ios,
+                color: Colors.white70,
+                size: 16,
+              ), // Smaller icon
             ],
           ),
         ),

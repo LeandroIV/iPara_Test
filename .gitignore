@@ -50,6 +50,9 @@ app.*.map.json
 /node_modules
 /.pnp
 .pnp.js
+/temp_*/node_modules
+/temp_commuters/node_modules
+/temp_puv/node_modules
 
 # Testing
 /coverage

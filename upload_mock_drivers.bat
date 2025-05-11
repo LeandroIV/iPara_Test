@@ -265,7 +265,7 @@ echo           etaMinutes: etaMinutes, >> upload_drivers.js
 echo           isMockData: true, >> upload_drivers.js
 echo           routeId: route.id, >> upload_drivers.js
 echo           routeCode: route.routeCode, >> upload_drivers.js
-echo           iconType: 'car', >> upload_drivers.js
+echo           iconType: route.puvType.toLowerCase(), >> upload_drivers.js
 echo           photoUrl: `https://randomuser.me/api/portraits/${Math.random() > 0.7 ? 'women' : 'men'}/${Math.floor(Math.random() * 70) + 1}.jpg` >> upload_drivers.js
 echo         }); >> upload_drivers.js
 echo       } >> upload_drivers.js

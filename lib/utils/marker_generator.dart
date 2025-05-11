@@ -29,7 +29,8 @@ class MarkerGenerator {
       position: driver.location,
       icon: icon,
       infoWindow: infoWindow,
-      rotation: driver.heading, // Orient the marker based on heading
+      rotation:
+          0, // Fixed rotation to make icons always face in a fixed direction
       flat: true, // Make the marker flat on the map
       anchor: const Offset(0.5, 0.5), // Center the marker
       zIndex: 2, // Higher z-index to appear above other markers
@@ -97,9 +98,12 @@ class MarkerGenerator {
     }
 
     try {
-      // Load the custom icon using the recommended method
+      // Debug print to check which icon is being loaded
+      debugPrint('Loading icon for PUV type: $puvType from path: $iconPath');
+
+      // Load the custom icon using the recommended method with larger size (64x64) for all vehicle types
       final icon = await BitmapDescriptor.fromAssetImage(
-        const ImageConfiguration(size: Size(48, 48)),
+        const ImageConfiguration(size: Size(64, 64)),
         iconPath,
       );
 

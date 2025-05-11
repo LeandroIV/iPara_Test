@@ -277,28 +277,43 @@ class LocationService {
 
     // Filter by selected PUV type if specified
     if (puvType != null) {
+      // Debug print to check if we're querying with the correct PUV type
+      debugPrint('Querying commuters with PUV type: $puvType');
       query = query.where('selectedPuvType', isEqualTo: puvType);
+    } else {
+      // If no PUV type specified, still show all commuters for debugging
+      debugPrint('No PUV type specified, showing all commuters');
     }
 
     // We'll filter by distance client-side
     return query.snapshots().map((snapshot) {
-      return snapshot.docs
-          .map((doc) {
-            // Convert to CommuterLocation model
-            return CommuterLocation.fromFirestore(doc);
-          })
-          .where((commuter) {
-            // Filter by distance
-            final commuterLocation = commuter.location;
-            final distanceInMeters = Geolocator.distanceBetween(
-              center.latitude,
-              center.longitude,
-              commuterLocation.latitude,
-              commuterLocation.longitude,
-            );
-            return distanceInMeters / 1000 <= radiusKm;
-          })
-          .toList();
+      // Debug print to check if we're getting any commuters from Firestore
+      debugPrint('Found ${snapshot.docs.length} commuters in Firestore');
+
+      final commuters =
+          snapshot.docs
+              .map((doc) {
+                // Convert to CommuterLocation model
+                return CommuterLocation.fromFirestore(doc);
+              })
+              .where((commuter) {
+                // Filter by distance
+                final commuterLocation = commuter.location;
+                final distanceInMeters = Geolocator.distanceBetween(
+                  center.latitude,
+                  center.longitude,
+                  commuterLocation.latitude,
+                  commuterLocation.longitude,
+                );
+                return distanceInMeters / 1000 <= radiusKm;
+              })
+              .toList();
+
+      // Debug print to check how many commuters are within the radius
+      debugPrint(
+        'Found ${commuters.length} commuters within ${radiusKm}km radius',
+      );
+      return commuters;
     });
   }
 
