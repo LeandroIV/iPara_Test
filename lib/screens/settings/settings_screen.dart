@@ -323,13 +323,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     // App Information
                     const Center(
                       child: Text(
-                        'iPara v1.0.0',
+                        'iPara v2.9.3',
                         style: TextStyle(color: Colors.white70),
                       ),
                     ),
                     const Center(
                       child: Text(
-                        '© 2023 iPara Team',
+                        '© 2025 iPara Team',
                         style: TextStyle(color: Colors.white70),
                       ),
                     ),

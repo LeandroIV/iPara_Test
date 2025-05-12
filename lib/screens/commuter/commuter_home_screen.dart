@@ -54,6 +54,9 @@ class _CommuterHomeScreenState extends State<CommuterHomeScreen>
     'Motorela': 16, // Updated to include BLUE route
   };
 
+  // State for minimizing available routes panel
+  bool _isRoutePanelMinimized = false;
+
   @override
   void initState() {
     super.initState();
@@ -69,20 +72,28 @@ class _CommuterHomeScreenState extends State<CommuterHomeScreen>
     _loadRoutes();
   }
 
-  // Load routes from service (using mock data only)
+  // Load routes from service (using Firestore data)
   Future<void> _loadRoutes() async {
     setState(() {
       _isLoadingRoutes = true;
     });
 
     try {
-      // Use mock data directly instead of Firestore
-      _availableRoutes = _routeService.getMockRoutes();
+      // Use Firestore data instead of mock data
+      _availableRoutes = await _routeService.getAllRoutes();
       debugPrint(
-        'Using mock routes data: ${_availableRoutes.map((r) => r.routeCode).join(', ')}',
+        'Loaded routes from Firestore: ${_availableRoutes.map((r) => r.routeCode).join(', ')}',
       );
+
+      // Fallback to mock data if no routes found in Firestore
+      if (_availableRoutes.isEmpty) {
+        debugPrint('No routes found in Firestore, using mock data as fallback');
+        _availableRoutes = _routeService.getMockRoutes();
+      }
     } catch (e) {
       debugPrint('Error loading routes: $e');
+      // Fallback to mock data on error
+      _availableRoutes = _routeService.getMockRoutes();
     } finally {
       if (mounted) {
         setState(() {
@@ -612,17 +623,20 @@ class _CommuterHomeScreenState extends State<CommuterHomeScreen>
                     ),
                   ),
 
-                  // Destination Search (more compact)
+                  // Destination Search (optimized and more compact)
                   Padding(
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 8.0,
+                      horizontal: 16.0,
                       vertical: 4.0,
                     ),
                     child: Container(
                       key: _searchBarKey,
+                      height:
+                          70, // Further increased height to fix text overflow
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 8,
+                        horizontal: 16,
+                        vertical:
+                            5, // Increased vertical padding for better spacing
                       ),
                       decoration: BoxDecoration(
                         color: Colors.white.withAlpha(30),
@@ -633,6 +647,7 @@ class _CommuterHomeScreenState extends State<CommuterHomeScreen>
                         ),
                       ),
                       child: Column(
+                        mainAxisSize: MainAxisSize.min,
                         children: [
                           Row(
                             children: [
@@ -641,30 +656,46 @@ class _CommuterHomeScreenState extends State<CommuterHomeScreen>
                                 color: Colors.amber,
                                 size: 20,
                               ),
-                              const SizedBox(width: 8),
+                              const SizedBox(
+                                width: 12,
+                              ), // Increased indentation
                               Expanded(
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
+                                  mainAxisSize: MainAxisSize.min,
                                   children: [
                                     const Text(
                                       'Select your Destination',
                                       style: TextStyle(
                                         color: Colors.white70,
-                                        fontSize: 12,
+                                        fontSize: 11, // Smaller text
                                       ),
                                     ),
+                                    const SizedBox(
+                                      height: 4,
+                                    ), // Increased spacing between label and text field
                                     TextField(
                                       controller: _destinationController,
                                       style: const TextStyle(
                                         color: Colors.white,
+                                        fontSize: 14, // Smaller text
                                       ),
                                       decoration: const InputDecoration(
                                         hintText: 'Where to?',
                                         hintStyle: TextStyle(
                                           color: Colors.white54,
+                                          fontSize: 14, // Smaller text
                                         ),
                                         border: InputBorder.none,
-                                        contentPadding: EdgeInsets.zero,
+                                        contentPadding: EdgeInsets.only(
+                                          left: 4,
+                                          bottom:
+                                              6, // Increased bottom padding to prevent text from being cut off
+                                          top:
+                                              2, // Added top padding for better vertical centering
+                                        ), // Add indentation
+                                        isDense:
+                                            true, // Make the field more compact
                                       ),
                                       onChanged: (value) {
                                         if (_debounceTimer?.isActive ?? false) {
@@ -689,7 +720,7 @@ class _CommuterHomeScreenState extends State<CommuterHomeScreen>
                                   icon: const Icon(
                                     Icons.close,
                                     color: Colors.white70,
-                                    size: 20,
+                                    size: 18, // Smaller icon
                                   ),
                                   padding: EdgeInsets.zero,
                                   constraints: BoxConstraints(),
@@ -716,7 +747,7 @@ class _CommuterHomeScreenState extends State<CommuterHomeScreen>
                                   icon: const Icon(
                                     Icons.search,
                                     color: Colors.amber,
-                                    size: 20,
+                                    size: 18, // Smaller icon
                                   ),
                                   padding: EdgeInsets.zero,
                                   constraints: BoxConstraints(),
@@ -731,7 +762,7 @@ class _CommuterHomeScreenState extends State<CommuterHomeScreen>
                           // Loading indicator when searching
                           if (_isSearching && _isLoadingPlaces)
                             Container(
-                              margin: const EdgeInsets.only(top: 4),
+                              margin: const EdgeInsets.only(top: 2),
                               height: 2,
                               child: const LinearProgressIndicator(
                                 color: Colors.amber,
@@ -762,9 +793,12 @@ class _CommuterHomeScreenState extends State<CommuterHomeScreen>
                           ),
                         ),
                         const SizedBox(height: 6),
-                        SizedBox(
+                        Container(
                           width: double.infinity,
-                          height: 80, // Increased height
+                          height: 78, // Slightly reduced height to fix overflow
+                          margin: EdgeInsets.only(
+                            bottom: 2,
+                          ), // Add bottom margin
                           child: SingleChildScrollView(
                             scrollDirection: Axis.horizontal,
                             child: Row(
@@ -926,13 +960,48 @@ class _CommuterHomeScreenState extends State<CommuterHomeScreen>
                             child: Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
-                                const Text(
-                                  'Available Routes',
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.bold,
-                                  ),
+                                Row(
+                                  children: [
+                                    // Minimize/Expand button
+                                    GestureDetector(
+                                      onTap: () {
+                                        setState(() {
+                                          _isRoutePanelMinimized =
+                                              !_isRoutePanelMinimized;
+                                        });
+                                      },
+                                      child: Container(
+                                        padding: EdgeInsets.all(4),
+                                        decoration: BoxDecoration(
+                                          color: Colors.amber.withValues(
+                                            red: 255,
+                                            green: 193,
+                                            blue: 7,
+                                            alpha: 50,
+                                          ),
+                                          borderRadius: BorderRadius.circular(
+                                            4,
+                                          ),
+                                        ),
+                                        child: Icon(
+                                          _isRoutePanelMinimized
+                                              ? Icons.expand_more
+                                              : Icons.expand_less,
+                                          color: Colors.amber,
+                                          size: 16,
+                                        ),
+                                      ),
+                                    ),
+                                    SizedBox(width: 8),
+                                    const Text(
+                                      'Available Routes',
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ],
                                 ),
                                 if (_selectedRoute != null)
                                   GestureDetector(
@@ -959,32 +1028,35 @@ class _CommuterHomeScreenState extends State<CommuterHomeScreen>
                               ],
                             ),
                           ),
-                          const SizedBox(height: 6),
-                          SizedBox(
-                            height: 90, // Reduced height
-                            width: double.infinity,
-                            child:
-                                _isLoadingRoutes
-                                    ? const Center(
-                                      child: CircularProgressIndicator(
-                                        color: Colors.amber,
-                                        strokeWidth: 2,
+                          // Only show the routes list if not minimized
+                          if (!_isRoutePanelMinimized) ...[
+                            const SizedBox(height: 6),
+                            SizedBox(
+                              height: 90, // Reduced height
+                              width: double.infinity,
+                              child:
+                                  _isLoadingRoutes
+                                      ? const Center(
+                                        child: CircularProgressIndicator(
+                                          color: Colors.amber,
+                                          strokeWidth: 2,
+                                        ),
+                                      )
+                                      : ListView.builder(
+                                        scrollDirection: Axis.horizontal,
+                                        itemCount: routes.length,
+                                        itemBuilder: (context, index) {
+                                          final route = routes[index];
+                                          final isSelected =
+                                              _selectedRoute?.id == route.id;
+                                          return _buildRouteCard(
+                                            route,
+                                            isSelected,
+                                          );
+                                        },
                                       ),
-                                    )
-                                    : ListView.builder(
-                                      scrollDirection: Axis.horizontal,
-                                      itemCount: routes.length,
-                                      itemBuilder: (context, index) {
-                                        final route = routes[index];
-                                        final isSelected =
-                                            _selectedRoute?.id == route.id;
-                                        return _buildRouteCard(
-                                          route,
-                                          isSelected,
-                                        );
-                                      },
-                                    ),
-                          ),
+                            ),
+                          ],
                         ],
                       ),
                     ),
@@ -1009,47 +1081,29 @@ class _CommuterHomeScreenState extends State<CommuterHomeScreen>
                           ),
                         ),
 
-                        // Visibility button positioned at the left side of the locator button
+                        // Visibility button positioned to the left of the locator button on the right side
                         Positioned(
                           right:
-                              64, // Positioned to the left of the locator button
+                              70, // Positioned to the left of the locator button
                           top: 16,
-                          child: Material(
+                          child: FloatingActionButton.small(
+                            heroTag: 'visibilityButton',
+                            onPressed: _toggleLocationVisibility,
+                            backgroundColor:
+                                _isLocationVisibleToDrivers
+                                    ? Colors.green.withAlpha(230)
+                                    : Colors.red.withAlpha(230),
                             elevation: 4,
-                            borderRadius: BorderRadius.circular(16),
-                            child: Container(
-                              decoration: BoxDecoration(
-                                color:
-                                    _isLocationVisibleToDrivers
-                                        ? Colors.green.withAlpha(230)
-                                        : Colors.red.withAlpha(230),
-                                borderRadius: BorderRadius.circular(16),
-                              ),
-                              child: Tooltip(
-                                message:
-                                    _isLocationVisibleToDrivers
-                                        ? 'Your location is visible to drivers'
-                                        : 'Your location is hidden from drivers',
-                                child: InkWell(
-                                  onTap: _toggleLocationVisibility,
-                                  borderRadius: BorderRadius.circular(16),
-                                  child: Padding(
-                                    padding: const EdgeInsets.all(6.0),
-                                    child: Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        Icon(
-                                          _isLocationVisibleToDrivers
-                                              ? Icons.visibility
-                                              : Icons.visibility_off,
-                                          color: Colors.white,
-                                          size: 16,
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                              ),
+                            tooltip:
+                                _isLocationVisibleToDrivers
+                                    ? 'Your location is visible to drivers'
+                                    : 'Your location is hidden from drivers',
+                            child: Icon(
+                              _isLocationVisibleToDrivers
+                                  ? Icons.visibility
+                                  : Icons.visibility_off,
+                              color: Colors.white,
+                              size: 16,
                             ),
                           ),
                         ),
@@ -1058,7 +1112,7 @@ class _CommuterHomeScreenState extends State<CommuterHomeScreen>
                         Positioned(
                           right: 16,
                           top: 70, // Positioned below the locator button
-                          child: FloatingActionButton(
+                          child: FloatingActionButton.small(
                             heroTag: 'mapRefresher',
                             onPressed: () {
                               if (_mapKey.currentState != null) {
@@ -1066,10 +1120,14 @@ class _CommuterHomeScreenState extends State<CommuterHomeScreen>
                               }
                             },
                             backgroundColor: Colors.white,
-                            mini: true,
+                            elevation: 4,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
                             child: const Icon(
                               Icons.refresh,
                               color: Colors.blue,
+                              size: 20,
                             ),
                           ),
                         ),

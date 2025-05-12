@@ -15,6 +15,7 @@ import 'screens/operator/operator_home_screen.dart';
 import 'screens/testing/auth_test_screen.dart';
 import 'screens/debug/debug_puv_screen.dart';
 import 'screens/debug/debug_driver_icons.dart';
+import 'screens/debug/firestore_test_screen.dart';
 import 'services/user_service.dart';
 import 'services/notification_service.dart';
 import 'models/user_role.dart';
@@ -133,6 +134,8 @@ class MyApp extends StatelessWidget {
         if (kDebugMode) '/debug/puv': (context) => const DebugPUVScreen(),
         if (kDebugMode)
           '/debug/driver-icons': (context) => const DebugDriverIconsScreen(),
+        if (kDebugMode)
+          '/debug/firestore': (context) => const FirestoreTestScreen(),
       },
     );
   }

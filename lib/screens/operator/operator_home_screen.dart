@@ -360,15 +360,33 @@ class _OperatorHomeScreenState extends State<OperatorHomeScreen>
                             fontWeight: FontWeight.bold,
                           ),
                         ),
-                        TextButton.icon(
-                          onPressed: () {
-                            // Navigate to all drivers
-                          },
-                          icon: Icon(Icons.visibility, size: 16),
-                          label: Text('View All'),
-                          style: TextButton.styleFrom(
-                            foregroundColor: Colors.green,
-                          ),
+                        Row(
+                          children: [
+                            TextButton.icon(
+                              onPressed: () {
+                                // Navigate to all drivers
+                              },
+                              icon: Icon(Icons.visibility, size: 16),
+                              label: Text('View All'),
+                              style: TextButton.styleFrom(
+                                foregroundColor: Colors.green,
+                              ),
+                            ),
+                            if (true) // Always show in debug mode
+                              TextButton.icon(
+                                onPressed: () {
+                                  Navigator.pushNamed(
+                                    context,
+                                    '/debug/firestore',
+                                  );
+                                },
+                                icon: Icon(Icons.bug_report, size: 16),
+                                label: Text('Test DB'),
+                                style: TextButton.styleFrom(
+                                  foregroundColor: Colors.amber,
+                                ),
+                              ),
+                          ],
                         ),
                       ],
                     ),

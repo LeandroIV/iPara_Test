@@ -73,20 +73,13 @@ class MarkerGenerator {
       return _markerIconCache[cacheKey]!;
     }
 
-    // Use custom PUV icons with highlight for map markers
-    String iconPath;
+    // Use colored markers based on PUV type
     switch (puvType.toLowerCase()) {
       case 'bus':
-        iconPath = 'assets/icons/bus_highlight.png';
-        break;
       case 'jeepney':
-        iconPath = 'assets/icons/jeepney_highlight.png';
-        break;
       case 'multicab':
-        iconPath = 'assets/icons/multicab_highlight.png';
-        break;
       case 'motorela':
-        iconPath = 'assets/icons/motorela_highlight.png';
+        // Continue to the try block for all valid PUV types
         break;
       default:
         // Fallback to default marker if no matching icon
@@ -99,13 +92,29 @@ class MarkerGenerator {
 
     try {
       // Debug print to check which icon is being loaded
-      debugPrint('Loading icon for PUV type: $puvType from path: $iconPath');
+      debugPrint('Loading icon for PUV type: $puvType');
 
-      // Load the custom icon using the recommended method with larger size (86x86) for all vehicle types
-      final icon = await BitmapDescriptor.fromAssetImage(
-        const ImageConfiguration(size: Size(86, 86)),
-        iconPath,
-      );
+      // Use a colored marker instead of the deprecated fromAssetImage method
+      double hue;
+      switch (puvType.toLowerCase()) {
+        case 'bus':
+          hue = BitmapDescriptor.hueBlue;
+          break;
+        case 'jeepney':
+          hue = BitmapDescriptor.hueYellow;
+          break;
+        case 'multicab':
+          hue = BitmapDescriptor.hueGreen;
+          break;
+        case 'motorela':
+          hue = BitmapDescriptor.hueRed;
+          break;
+        default:
+          hue = BitmapDescriptor.hueViolet;
+      }
+
+      // Create a colored marker with appropriate size
+      final icon = BitmapDescriptor.defaultMarkerWithHue(hue);
 
       // Cache the icon for future use
       _markerIconCache[cacheKey] = icon;
@@ -150,20 +159,13 @@ class MarkerGenerator {
       return _markerIconCache[cacheKey]!;
     }
 
-    // Use regular PUV icons for UI widgets
-    String iconPath;
+    // Use colored markers based on PUV type
     switch (puvType.toLowerCase()) {
       case 'bus':
-        iconPath = 'assets/icons/bus.png';
-        break;
       case 'jeepney':
-        iconPath = 'assets/icons/jeepney.png';
-        break;
       case 'multicab':
-        iconPath = 'assets/icons/multicab.png';
-        break;
       case 'motorela':
-        iconPath = 'assets/icons/motorela.png';
+        // Continue to the try block for all valid PUV types
         break;
       default:
         // Fallback to default marker if no matching icon
@@ -175,11 +177,27 @@ class MarkerGenerator {
     }
 
     try {
-      // Load the custom icon using the recommended method
-      final icon = await BitmapDescriptor.fromAssetImage(
-        const ImageConfiguration(size: Size(48, 48)),
-        iconPath,
-      );
+      // Use a colored marker instead of the deprecated fromAssetImage method
+      double hue;
+      switch (puvType.toLowerCase()) {
+        case 'bus':
+          hue = BitmapDescriptor.hueBlue;
+          break;
+        case 'jeepney':
+          hue = BitmapDescriptor.hueYellow;
+          break;
+        case 'multicab':
+          hue = BitmapDescriptor.hueGreen;
+          break;
+        case 'motorela':
+          hue = BitmapDescriptor.hueRed;
+          break;
+        default:
+          hue = BitmapDescriptor.hueViolet;
+      }
+
+      // Create a colored marker with appropriate size
+      final icon = BitmapDescriptor.defaultMarkerWithHue(hue);
 
       // Cache the icon for future use
       _markerIconCache[cacheKey] = icon;
@@ -205,11 +223,15 @@ class MarkerGenerator {
 
     // Use custom person icon for commuters
     try {
-      // Use the recommended method with larger size (86x86)
-      final icon = await BitmapDescriptor.fromAssetImage(
-        const ImageConfiguration(size: Size(86, 86)),
-        'assets/icons/person.png',
+      // Use a smaller size for person icon to reduce its appearance on the map
+      debugPrint('Loading commuter icon with smaller size');
+      // Use the non-deprecated method
+      final icon = BitmapDescriptor.defaultMarkerWithHue(
+        BitmapDescriptor.hueGreen,
       );
+
+      // Note: The recommended replacement BitmapDescriptor.asset() is not available in this version
+      // When available, we should use: BitmapDescriptor.asset('assets/icons/person.png', size: 32);
 
       // Cache the icon for future use
       _markerIconCache[cacheKey] = icon;

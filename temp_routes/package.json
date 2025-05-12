@@ -1,0 +1,9 @@
+{
+  "name": "ipara-route-uploader",
+  "version": "1.0.0",
+  "description": "Upload route data to Firebase for iPara app",
+  "main": "upload_routes.js",
+  "dependencies": {
+    "firebase-admin": "^11.10.1"
+  }
+}

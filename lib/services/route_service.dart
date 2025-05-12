@@ -15,17 +15,47 @@ class RouteService {
   /// Fetch all routes
   Future<List<PUVRoute>> getAllRoutes() async {
     try {
-      final querySnapshot =
-          await _routesCollection
-              .where('isActive', isEqualTo: true)
-              .orderBy('routeCode')
-              .get();
+      debugPrint('Attempting to fetch all routes from Firestore...');
 
-      return querySnapshot.docs
-          .map((doc) => PUVRoute.fromFirestore(doc))
-          .toList();
+      // First try to get all documents without any filters to see if the collection exists
+      final allDocs = await _routesCollection.get();
+      debugPrint(
+        'Total documents in routes collection: ${allDocs.docs.length}',
+      );
+
+      if (allDocs.docs.isNotEmpty) {
+        // Print some sample document IDs and data
+        debugPrint(
+          'Sample document IDs: ${allDocs.docs.take(3).map((d) => d.id).join(', ')}',
+        );
+        for (var doc in allDocs.docs.take(3)) {
+          final data = doc.data();
+          debugPrint(
+            'Document ${doc.id} data: isActive=${data['isActive']}, routeCode=${data['routeCode']}, puvType=${data['puvType']}',
+          );
+        }
+      }
+
+      // Now try with the filter but without orderBy (in case of missing index)
+      debugPrint('Fetching active routes without ordering...');
+      final querySnapshot =
+          await _routesCollection.where('isActive', isEqualTo: true).get();
+
+      debugPrint('Found ${querySnapshot.docs.length} active routes');
+
+      final routes =
+          querySnapshot.docs.map((doc) => PUVRoute.fromFirestore(doc)).toList();
+
+      if (routes.isNotEmpty) {
+        debugPrint(
+          'First route: ${routes.first.routeCode} (${routes.first.name})',
+        );
+      }
+
+      return routes;
     } catch (e) {
       debugPrint('Error fetching routes: $e');
+      debugPrint('Error details: ${e.toString()}');
       return [];
     }
   }
@@ -300,12 +330,13 @@ class RouteService {
         puvType: 'Bus',
         routeCode: 'R3',
         waypoints: [
-          const LatLng(8.490123, 124.652781), // Lapasan
-          const LatLng(8.486028, 124.650684), // Gaisano
-          const LatLng(8.479595, 124.649240), // Cogon Market
-          const LatLng(8.477595, 124.653591), // Yacapin
-          const LatLng(8.485010, 124.647179), // Velez
-          const LatLng(8.490123, 124.652781), // Back to Lapasan
+          const LatLng(8.482776, 124.664608), // Lapasan
+          const LatLng(8.486510, 124.648319), // Gaisano
+          const LatLng(8.477458, 124.644200), // Cogon Market
+          const LatLng(8.477023, 124.645975), // Yacapin
+          const LatLng(8.478459, 124.646503), // Velez
+          const LatLng(8.480728, 124.657680), // Back to Lapasan
+          const LatLng(8.482776, 124.664608), // Lapasan
         ],
         startPointName: 'Lapasan',
         endPointName: 'Cogon Market',

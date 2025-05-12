@@ -63,17 +63,28 @@ class PUVRoute {
   factory PUVRoute.fromFirestore(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
 
+    // Debug output
+    print(
+      'Processing document ${doc.id} with data keys: ${data.keys.join(', ')}',
+    );
+
     // Convert the GeoPoint list to LatLng list
     final List<dynamic> waypointData = data['waypoints'] ?? [];
+    print(
+      'Waypoints data type: ${waypointData.runtimeType}, count: ${waypointData.length}',
+    );
+
     final List<LatLng> routeWaypoints =
         waypointData.map((point) {
           if (point is GeoPoint) {
             return LatLng(point.latitude, point.longitude);
           } else if (point is Map<String, dynamic>) {
             return LatLng(point['latitude'], point['longitude']);
+          } else {
+            print('Unknown waypoint type: ${point.runtimeType}');
+            // Default fallback
+            return const LatLng(0, 0);
           }
-          // Default fallback
-          return const LatLng(0, 0);
         }).toList();
 
     // Normalize PUV type to ensure consistent capitalization

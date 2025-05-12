@@ -3,17 +3,17 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:permission_handler/permission_handler.dart' as permission;
 import 'package:flutter/foundation.dart'
-    show kIsWeb, defaultTargetPlatform, TargetPlatform;
+    show defaultTargetPlatform, TargetPlatform;
 import 'dart:async';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:flutter_polyline_points/flutter_polyline_points.dart';
-import 'package:location/location.dart' as location_pkg;
-import '../config/api_keys.dart';
 import '../models/driver_location_model.dart';
 import '../models/commuter_location_model.dart';
 import '../services/location_service.dart';
-import '../utils/marker_generator.dart';
+import 'dart:ui' as ui;
+import 'dart:typed_data';
+import 'package:flutter/services.dart' show rootBundle;
 
 // Consistent API key declaration at the top level
 const String googleApiKey = "AIzaSyDtm_kDatDOlKtvEMCA5lcVRFyTM6f6NNk";
@@ -60,6 +60,11 @@ class HomeMapWidgetState extends State<HomeMapWidget> {
   // Flags for showing drivers and commuters
   bool _showDrivers = false;
   bool _showCommuters = false;
+
+  // Route information
+  String? _currentDestinationName;
+  double? _currentRouteDistanceKm;
+  int? _estimatedTimeMinutes;
 
   // Make search functionality accessible from outside
   List<dynamic> get searchResults => _searchResults;
@@ -621,11 +626,17 @@ class HomeMapWidgetState extends State<HomeMapWidget> {
       final AssetImage assetImage = AssetImage(iconPath);
       await precacheImage(assetImage, context);
 
-      // Load the custom icon using the non-deprecated method with 86x86 size
-      final icon = await BitmapDescriptor.fromAssetImage(
-        const ImageConfiguration(size: Size(86, 86)),
-        iconPath,
-      );
+      // Load the custom icon using the non-deprecated method
+      final icon = BitmapDescriptor.defaultMarker; // Fallback
+
+      try {
+        // Create a custom bitmap from the asset
+        final ByteData data = await rootBundle.load(iconPath);
+        final Uint8List bytes = data.buffer.asUint8List();
+        return BitmapDescriptor.bytes(bytes);
+      } catch (e) {
+        debugPrint('Error loading asset as bytes: $e');
+      }
 
       debugPrint(
         'Successfully loaded icon for PUV type: ${puvType.toLowerCase()}',
@@ -667,14 +678,18 @@ class HomeMapWidgetState extends State<HomeMapWidget> {
       final AssetImage assetImage = AssetImage(iconPath);
       await precacheImage(assetImage, context);
 
-      // Load the custom icon using the non-deprecated method with 86x86 size
-      final icon = await BitmapDescriptor.fromAssetImage(
-        const ImageConfiguration(size: Size(86, 86)),
-        iconPath,
-      );
+      try {
+        // Create a custom bitmap from the asset
+        final ByteData data = await rootBundle.load(iconPath);
+        final Uint8List bytes = data.buffer.asUint8List();
+        return BitmapDescriptor.bytes(bytes);
+      } catch (e) {
+        debugPrint('Error loading asset as bytes: $e');
+      }
 
       debugPrint('Successfully loaded commuter icon');
-      return icon;
+      // Fallback if the above fails
+      return BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen);
     } catch (e) {
       // Fallback to default marker if the custom icon fails to load
       debugPrint(
@@ -715,6 +730,32 @@ class HomeMapWidgetState extends State<HomeMapWidget> {
     }
   }
 
+  /// Calculate distance between two points in kilometers
+  double _calculateDistance(LatLng start, LatLng end) {
+    return Geolocator.distanceBetween(
+          start.latitude,
+          start.longitude,
+          end.latitude,
+          end.longitude,
+        ) /
+        1000; // Convert meters to kilometers
+  }
+
+  /// Calculate the total distance of a polyline in kilometers
+  double _calculatePolylineDistance(List<LatLng> points) {
+    double totalDistance = 0;
+    for (int i = 0; i < points.length - 1; i++) {
+      totalDistance += _calculateDistance(points[i], points[i + 1]);
+    }
+    return totalDistance;
+  }
+
+  /// Calculate estimated travel time based on distance and speed
+  int _calculateEstimatedTime(double distanceKm, {double speedKph = 40.0}) {
+    // Default speed in city is 40 kph
+    return (distanceKm / speedKph * 60).round(); // Convert to minutes
+  }
+
   // Add a method to display a route between two points
   Future<bool> showRoute(
     LatLng origin,
@@ -737,6 +778,15 @@ class HomeMapWidgetState extends State<HomeMapWidget> {
 
       if (!mounted) return false;
 
+      // Calculate distance and ETA
+      final double distanceKm = _calculatePolylineDistance(polylineCoordinates);
+      final int estimatedMinutes = _calculateEstimatedTime(distanceKm);
+
+      // Store route information for potential use elsewhere
+      _currentDestinationName = routeName;
+      _currentRouteDistanceKm = distanceKm;
+      _estimatedTimeMinutes = estimatedMinutes;
+
       final PolylineId userRouteId = PolylineId('user_route');
       final Polyline polyline = Polyline(
         polylineId: userRouteId,
@@ -744,6 +794,45 @@ class HomeMapWidgetState extends State<HomeMapWidget> {
         width: 5,
         points: polylineCoordinates,
       );
+
+      // Find the middle point of the polyline to place the distance marker
+      if (polylineCoordinates.length > 1) {
+        // Get the middle point index
+        int middleIndex = polylineCoordinates.length ~/ 2;
+        LatLng middlePoint = polylineCoordinates[middleIndex];
+
+        // Create a custom marker for distance and ETA
+        final distanceMarkerId = MarkerId('distance_marker');
+
+        // Format the distance text
+        final String distanceText =
+            distanceKm < 1
+                ? '${(distanceKm * 1000).toStringAsFixed(0)} m'
+                : '${distanceKm.toStringAsFixed(1)} km';
+
+        // Create a bitmap descriptor for the custom marker
+        final BitmapDescriptor markerIcon = await _createDistanceMarkerBitmap(
+          distanceText,
+          '$estimatedMinutes min',
+        );
+
+        // Add the marker to the map
+        final distanceMarker = Marker(
+          markerId: distanceMarkerId,
+          position: middlePoint,
+          icon: markerIcon,
+          anchor: Offset(0.5, 0.5), // Center the marker on the point
+          zIndex: 3, // Higher z-index to appear above other markers
+        );
+
+        // Remove any existing distance marker
+        _markers.removeWhere(
+          (marker) => marker.markerId.value == 'distance_marker',
+        );
+
+        // Add the new distance marker
+        _markers.add(distanceMarker);
+      }
 
       setState(() {
         _polylines[userRouteId] = polyline;
@@ -755,9 +844,12 @@ class HomeMapWidgetState extends State<HomeMapWidget> {
         _updateCameraToShowRoute(polylineCoordinates);
       }
 
+      debugPrint(
+        'Route created: Distance: ${distanceKm.toStringAsFixed(1)} km, ETA: $estimatedMinutes min',
+      );
       return true;
     } catch (e) {
-      print('Error showing route: $e');
+      debugPrint('Error showing route: $e');
       if (mounted) {
         setState(() {
           _isLoading = false;
@@ -765,6 +857,216 @@ class HomeMapWidgetState extends State<HomeMapWidget> {
       }
       return false;
     }
+  }
+
+  // Helper method to create a custom bitmap for the distance marker
+  Future<BitmapDescriptor> _createDistanceMarkerBitmap(
+    String distance,
+    String eta,
+  ) async {
+    // Create a custom marker using a widget
+    final ui.PictureRecorder pictureRecorder = ui.PictureRecorder();
+    final Canvas canvas = Canvas(pictureRecorder);
+
+    // Create a pill-shaped container (like in the reference image)
+    // Reduced size as requested
+    final double width = 110.0; // Reduced width
+    final double height = 45.0; // Reduced height
+    final double cornerRadius =
+        height / 2; // Pill shape with fully rounded ends
+
+    // Create a rectangle for the pill shape
+    final Rect rect = Rect.fromCenter(
+      center: Offset(width / 2, height / 2),
+      width: width,
+      height: height,
+    );
+
+    // Create a white background
+    final Paint backgroundPaint = Paint()..color = Colors.white;
+
+    // Draw pill shape with white background
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(rect, Radius.circular(cornerRadius)),
+      backgroundPaint,
+    );
+
+    // Draw amber border
+    final Paint borderPaint =
+        Paint()
+          ..color = Colors.amber
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 2;
+
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(rect, Radius.circular(cornerRadius)),
+      borderPaint,
+    );
+
+    // Get the appropriate PUV icon path based on selected PUV type
+    String iconPath = 'assets/icons/jeepney.png'; // Default to jeepney
+
+    // Use the selected PUV type for the icon
+    if (_selectedPuvType != null) {
+      switch (_selectedPuvType!.toLowerCase()) {
+        case 'bus':
+          iconPath = 'assets/icons/bus.png';
+          break;
+        case 'jeepney':
+          iconPath = 'assets/icons/jeepney.png';
+          break;
+        case 'multicab':
+          iconPath = 'assets/icons/multicab.png';
+          break;
+        case 'motorela':
+          iconPath = 'assets/icons/motorela.png';
+          break;
+      }
+    }
+
+    // Load the PUV icon image
+    try {
+      debugPrint('Loading PUV icon from path: $iconPath');
+      final ByteData iconData = await rootBundle.load(iconPath);
+      final Uint8List iconBytes = iconData.buffer.asUint8List();
+      final ui.Codec codec = await ui.instantiateImageCodec(
+        iconBytes,
+        targetWidth: 40, // Specify target size for better quality
+        targetHeight: 40,
+      );
+      final ui.FrameInfo frameInfo = await codec.getNextFrame();
+
+      // Draw the PUV icon aligned with the distance text
+      final double iconSize = 24.0; // Bigger icon size
+      final double iconX = 15.0; // Position from left with less padding
+      final double iconY =
+          height / 3 - iconSize / 2; // Align with distance text in top third
+
+      // Scale the image to the desired size
+      final Rect destRect = Rect.fromLTWH(iconX, iconY, iconSize, iconSize);
+
+      // Use a Paint with filtering to ensure smooth rendering
+      final Paint iconPaint = Paint()..filterQuality = ui.FilterQuality.medium;
+
+      canvas.drawImageRect(
+        frameInfo.image,
+        Rect.fromLTWH(
+          0,
+          0,
+          frameInfo.image.width.toDouble(),
+          frameInfo.image.height.toDouble(),
+        ),
+        destRect,
+        iconPaint,
+      );
+    } catch (e) {
+      debugPrint('Error loading PUV icon: $e');
+      // Continue without the icon if there's an error
+    }
+
+    // Create distance text painter (smaller, bold text)
+    final TextPainter distancePainter = TextPainter(
+      text: TextSpan(
+        text: distance,
+        style: TextStyle(
+          color: Colors.black,
+          fontSize: 15, // Slightly smaller text size
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    );
+    distancePainter.layout();
+
+    // No clock icon variables needed
+
+    // No clock circle drawing
+
+    // Create ETA text painter (smaller text)
+    final TextPainter etaPainter = TextPainter(
+      text: TextSpan(
+        text: eta.replaceAll(
+          'min',
+          'mins',
+        ), // Format as "2 mins" as shown in reference
+        style: TextStyle(
+          color: Colors.black,
+          fontSize: 14, // Reduced text size
+          fontWeight: FontWeight.normal,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    );
+    etaPainter.layout();
+
+    // Position the text with proper alignment
+    final double distanceTextX =
+        45.0; // Position for distance text (after PUV icon) - adjusted for larger icon
+    final double distanceTextY =
+        height / 3 - distancePainter.height / 2; // Top third of marker
+
+    // Position for ETA text (to the right of the clock icon)
+    final double etaTextX = 45.0; // Position to the right of the clock icon
+    final double etaTextY = height * 0.50; // Same Y position as the clock icon
+
+    // Paint the distance text
+    distancePainter.paint(canvas, Offset(distanceTextX, distanceTextY));
+
+    // Add the custom clock.png icon below the PUV icon in the lower left corner
+    try {
+      // Load the custom clock icon
+      final ByteData clockIconData = await rootBundle.load(
+        'assets/icons/clock.png',
+      );
+      final Uint8List clockIconBytes = clockIconData.buffer.asUint8List();
+      final ui.Codec clockCodec = await ui.instantiateImageCodec(
+        clockIconBytes,
+        targetWidth: 16, // Small size for the clock icon
+        targetHeight: 16,
+      );
+      final ui.FrameInfo clockFrameInfo = await clockCodec.getNextFrame();
+
+      // Position the clock icon directly below the PUV icon (aligned with it)
+      final double clockIconSize = 16.0;
+      final double clockIconX = 17.0; // Same X position as PUV icon
+      final double clockIconY =
+          height * 0.50; // Position in the bottom half of the marker
+
+      // Draw the clock image
+      canvas.drawImageRect(
+        clockFrameInfo.image,
+        Rect.fromLTWH(
+          0,
+          0,
+          clockFrameInfo.image.width.toDouble(),
+          clockFrameInfo.image.height.toDouble(),
+        ),
+        Rect.fromLTWH(clockIconX, clockIconY, clockIconSize, clockIconSize),
+        Paint()..filterQuality = ui.FilterQuality.medium,
+      );
+    } catch (e) {
+      debugPrint('Error loading custom clock icon: $e');
+      // Continue without the clock icon if there's an error
+    }
+
+    // Paint the ETA text to the right of the clock icon, vertically centered with it
+    etaPainter.paint(
+      canvas,
+      Offset(
+        etaTextX,
+        etaTextY - etaPainter.height / 2 + 8.0,
+      ), // 8.0 is half of the clock icon size (16.0)
+    );
+
+    // Convert to image
+    final img = await pictureRecorder.endRecording().toImage(
+      width.toInt(),
+      height.toInt(),
+    );
+    final byteData = await img.toByteData(format: ui.ImageByteFormat.png);
+    final Uint8List pngBytes = byteData!.buffer.asUint8List();
+
+    return BitmapDescriptor.bytes(pngBytes);
   }
 
   // Method to get directions from the Google Directions API
@@ -778,13 +1080,13 @@ class HomeMapWidgetState extends State<HomeMapWidget> {
         '&key=$_googleApiKey';
 
     try {
-      print('Fetching directions from: $url');
+      debugPrint('Fetching directions from: $url');
       final response = await http.get(Uri.parse(url));
-      print('Response status code: ${response.statusCode}');
+      debugPrint('Response status code: ${response.statusCode}');
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-        print('API response status: ${data['status']}');
+        debugPrint('API response status: ${data['status']}');
 
         if (data['status'] == 'OK') {
           // Decode polyline points
@@ -796,21 +1098,21 @@ class HomeMapWidgetState extends State<HomeMapWidget> {
               .map((point) => LatLng(point.latitude, point.longitude))
               .toList();
         } else {
-          print('Directions API error: ${data['status']}');
-          print(
+          debugPrint('Directions API error: ${data['status']}');
+          debugPrint(
             'Error message: ${data['error_message'] ?? 'No error message'}',
           );
           // If error, return direct line between points as fallback
           return [origin, destination];
         }
       } else {
-        print('Failed to fetch directions: ${response.statusCode}');
-        print('Response body: ${response.body}');
+        debugPrint('Failed to fetch directions: ${response.statusCode}');
+        debugPrint('Response body: ${response.body}');
         // Return direct line as fallback
         return [origin, destination];
       }
     } catch (e) {
-      print('Error fetching directions: $e');
+      debugPrint('Error fetching directions: $e');
       // Return direct line as fallback
       return [origin, destination];
     }
@@ -910,6 +1212,15 @@ class HomeMapWidgetState extends State<HomeMapWidget> {
     setState(() {
       if (clearUserRoute) {
         _polylines.remove(PolylineId('user_route'));
+        // Clear route information
+        _currentDestinationName = null;
+        _currentRouteDistanceKm = null;
+        _estimatedTimeMinutes = null;
+
+        // Also remove the distance marker
+        _markers.removeWhere(
+          (marker) => marker.markerId.value == 'distance_marker',
+        );
       }
       if (clearPUVRoute) {
         _polylines.remove(PolylineId('puv_route'));
@@ -1115,7 +1426,7 @@ class HomeMapWidgetState extends State<HomeMapWidget> {
 
       // Show route from user location to destination if user location is available and visible
       if (_userLocation != null && widget.showUserLocation) {
-        await showRoute(_userLocation!, destinationLocation);
+        await showRoute(_userLocation!, destinationLocation, routeName: name);
       }
     }
 
@@ -1377,7 +1688,7 @@ class HomeMapWidgetState extends State<HomeMapWidget> {
       if (_userLocation != null &&
           placeName != null &&
           widget.showUserLocation) {
-        await showRoute(_userLocation!, location);
+        await showRoute(_userLocation!, location, routeName: placeName);
       }
 
       // Show the info window for the marker
@@ -1546,41 +1857,37 @@ class HomeMapWidgetState extends State<HomeMapWidget> {
             compassEnabled: true,
           ),
         ),
+
+        // My Location button (without border)
         Positioned(
           right: 16,
           top: 16,
-          child: Container(
-            height: 40,
-            width: 40,
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(2),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.2),
-                  blurRadius: 4,
-                  offset: const Offset(0, 2),
-                ),
-              ],
+          child: FloatingActionButton.small(
+            heroTag: 'locatorButton',
+            onPressed: _centerOnUserLocation,
+            backgroundColor: Colors.white,
+            elevation: 4,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
             ),
-            child: Material(
-              color: Colors.transparent,
-              child: InkWell(
-                onTap: _centerOnUserLocation,
-                child: const Center(
-                  child: Icon(
-                    Icons.my_location,
-                    color: Colors.black54,
-                    size: 20,
-                  ),
-                ),
-              ),
+            child: const Icon(
+              Icons.my_location,
+              color: Colors.black54,
+              size: 20,
             ),
           ),
         ),
+
+        // We'll handle the distance/ETA indicator in the showRoute method
+        // by adding a custom marker at the middle of the polyline
         if (_isLoading)
           Container(
-            color: Colors.black.withOpacity(0.5),
+            color: Colors.black.withValues(
+              red: 0,
+              green: 0,
+              blue: 0,
+              alpha: 128, // 0.5 * 255 = 128
+            ),
             child: const Center(child: CircularProgressIndicator()),
           ),
       ],

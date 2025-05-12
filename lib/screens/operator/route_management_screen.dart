@@ -36,6 +36,17 @@ class _RouteManagementScreenState extends State<RouteManagementScreen> {
 
     try {
       final routes = await _routeService.getAllRoutes();
+      debugPrint('Loaded ${routes.length} routes from Firestore');
+      if (routes.isEmpty) {
+        debugPrint(
+          'No routes found in Firestore. Check if routes were uploaded correctly.',
+        );
+      } else {
+        debugPrint(
+          'Routes found: ${routes.map((r) => r.routeCode).join(', ')}',
+        );
+      }
+
       setState(() {
         _routes = routes;
         _isLoading = false;

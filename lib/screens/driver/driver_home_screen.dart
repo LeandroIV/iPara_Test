@@ -71,20 +71,28 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
     _loadRoutes();
   }
 
-  // Load routes from service (using mock data only)
+  // Load routes from service (using Firestore data)
   Future<void> _loadRoutes() async {
     setState(() {
       _isLoadingRoutes = true;
     });
 
     try {
-      // Use mock data directly instead of Firestore
-      _availableRoutes = _routeService.getMockRoutes();
+      // Use Firestore data instead of mock data
+      _availableRoutes = await _routeService.getAllRoutes();
       debugPrint(
-        'Using mock routes data: ${_availableRoutes.map((r) => r.routeCode).join(', ')}',
+        'Loaded routes from Firestore: ${_availableRoutes.map((r) => r.routeCode).join(', ')}',
       );
+
+      // Fallback to mock data if no routes found in Firestore
+      if (_availableRoutes.isEmpty) {
+        debugPrint('No routes found in Firestore, using mock data as fallback');
+        _availableRoutes = _routeService.getMockRoutes();
+      }
     } catch (e) {
       debugPrint('Error loading routes: $e');
+      // Fallback to mock data on error
+      _availableRoutes = _routeService.getMockRoutes();
     } finally {
       if (mounted) {
         setState(() {
@@ -878,74 +886,51 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
                           ),
                         ),
 
-                        // Compact visibility button
+                        // Visibility button positioned to the left of the locator button
                         Positioned(
                           right:
-                              56, // Positioned to the left of the locator button
-                          top: 10,
-                          child: Material(
-                            elevation: 3,
-                            borderRadius: BorderRadius.circular(12),
-                            child: Container(
-                              decoration: BoxDecoration(
-                                color:
-                                    _isLocationVisibleToCommuters
-                                        ? Colors.green.withAlpha(230)
-                                        : Colors.red.withAlpha(230),
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Tooltip(
-                                message:
-                                    _isLocationVisibleToCommuters
-                                        ? 'Your location is visible to commuters'
-                                        : 'Your location is hidden from commuters',
-                                child: InkWell(
-                                  onTap: _toggleLocationVisibility,
-                                  borderRadius: BorderRadius.circular(12),
-                                  child: Padding(
-                                    padding: const EdgeInsets.all(4.0),
-                                    child: Icon(
-                                      _isLocationVisibleToCommuters
-                                          ? Icons.visibility
-                                          : Icons.visibility_off,
-                                      color: Colors.white,
-                                      size: 14,
-                                    ),
-                                  ),
-                                ),
-                              ),
+                              70, // Positioned to the left of the locator button
+                          top: 16,
+                          child: FloatingActionButton.small(
+                            heroTag: 'visibilityButton',
+                            onPressed: _toggleLocationVisibility,
+                            backgroundColor:
+                                _isLocationVisibleToCommuters
+                                    ? Colors.green.withAlpha(230)
+                                    : Colors.red.withAlpha(230),
+                            elevation: 4,
+                            tooltip:
+                                _isLocationVisibleToCommuters
+                                    ? 'Your location is visible to commuters'
+                                    : 'Your location is hidden from commuters',
+                            child: Icon(
+                              _isLocationVisibleToCommuters
+                                  ? Icons.visibility
+                                  : Icons.visibility_off,
+                              color: Colors.white,
+                              size: 16,
                             ),
                           ),
                         ),
 
-                        // Compact map refresher button
+                        // Refresh button positioned below the locator button
                         Positioned(
-                          right: 10,
-                          top: 56, // Positioned below the locator button
-                          child: Material(
-                            elevation: 3,
-                            borderRadius: BorderRadius.circular(12),
-                            child: Container(
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: InkWell(
-                                onTap: () {
-                                  if (_mapKey.currentState != null) {
-                                    _mapKey.currentState!.initializeLocation();
-                                  }
-                                },
-                                borderRadius: BorderRadius.circular(12),
-                                child: Padding(
-                                  padding: const EdgeInsets.all(4.0),
-                                  child: Icon(
-                                    Icons.refresh,
-                                    color: Colors.blue,
-                                    size: 14,
-                                  ),
-                                ),
-                              ),
+                          right: 16,
+                          top: 70, // Positioned below the locator button
+                          child: FloatingActionButton.small(
+                            heroTag: 'refreshButton',
+                            onPressed: () {
+                              if (_mapKey.currentState != null) {
+                                _mapKey.currentState!.initializeLocation();
+                              }
+                            },
+                            backgroundColor: Colors.white,
+                            elevation: 4,
+                            tooltip: 'Refresh map',
+                            child: Icon(
+                              Icons.refresh,
+                              color: Colors.blue,
+                              size: 16,
                             ),
                           ),
                         ),
