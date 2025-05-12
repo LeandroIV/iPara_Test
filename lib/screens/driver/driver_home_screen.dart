@@ -208,24 +208,24 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
     });
   }
 
-  // Helper method to build a route card
+  // Helper method to build a compact route card
   Widget _buildRouteCard(PUVRoute route, bool isSelected) {
     return Padding(
-      padding: const EdgeInsets.only(right: 10.0),
+      padding: const EdgeInsets.only(right: 6.0),
       child: InkWell(
         onTap: () {
           _displayRoute(route);
         },
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(8),
         child: Container(
-          width: 150,
-          padding: const EdgeInsets.all(10),
+          width: 130, // Reduced width
+          padding: const EdgeInsets.all(6),
           decoration: BoxDecoration(
             color:
                 isSelected
-                    ? Color(route.colorValue).withOpacity(0.3)
-                    : Colors.white.withOpacity(0.1),
-            borderRadius: BorderRadius.circular(10),
+                    ? Color(route.colorValue).withAlpha(75)
+                    : Colors.white.withAlpha(25),
+            borderRadius: BorderRadius.circular(8),
             border:
                 isSelected
                     ? Border.all(color: Color(route.colorValue), width: 2)
@@ -239,54 +239,49 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
                 children: [
                   Container(
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 6,
-                      vertical: 2,
+                      horizontal: 4,
+                      vertical: 1,
                     ),
                     decoration: BoxDecoration(
                       color: Color(route.colorValue),
-                      borderRadius: BorderRadius.circular(4),
+                      borderRadius: BorderRadius.circular(3),
                     ),
                     child: Text(
                       route.routeCode,
                       style: const TextStyle(
                         color: Colors.white,
                         fontWeight: FontWeight.bold,
-                        fontSize: 12,
+                        fontSize: 10,
                       ),
                     ),
                   ),
-                  const SizedBox(width: 6),
+                  const SizedBox(width: 4),
                   Text(
                     '₱${route.farePrice.toStringAsFixed(0)}',
                     style: const TextStyle(
                       color: Colors.white,
                       fontWeight: FontWeight.bold,
-                      fontSize: 13,
+                      fontSize: 10,
                     ),
                   ),
                 ],
               ),
-              const SizedBox(height: 6),
+              const SizedBox(height: 4),
               Expanded(
                 child: Text(
                   '${route.startPointName} to ${route.endPointName}',
-                  style: const TextStyle(color: Colors.white, fontSize: 11),
+                  style: const TextStyle(color: Colors.white, fontSize: 10),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
-              const SizedBox(height: 2),
               Row(
                 children: [
-                  const Icon(
-                    Icons.access_time,
-                    color: Colors.white70,
-                    size: 10,
-                  ),
+                  const Icon(Icons.access_time, color: Colors.white70, size: 9),
                   const SizedBox(width: 2),
                   Text(
                     '~${route.estimatedTravelTime} min',
-                    style: const TextStyle(color: Colors.white70, fontSize: 10),
+                    style: const TextStyle(color: Colors.white70, fontSize: 9),
                   ),
                 ],
               ),
@@ -490,65 +485,54 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
             child: SafeArea(
               child: Column(
                 children: [
-                  // Header with role indicator
+                  // Compact header with role indicator
                   Padding(
-                    padding: const EdgeInsets.all(16.0),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8.0,
+                      vertical: 8.0,
+                    ),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Row(
-                          children: [
-                            IconButton(
-                              icon: Icon(Icons.menu, color: Colors.white),
-                              onPressed: _toggleDrawer,
-                            ),
-                            // Debug button (only visible in debug mode)
-                            if (kDebugMode) // Only show in debug builds
-                              IconButton(
-                                icon: Icon(
-                                  Icons.bug_report,
-                                  color: Colors.amber,
-                                ),
-                                onPressed: () {
-                                  Navigator.pushNamed(context, '/debug/puv');
-                                },
-                                tooltip: 'Debug PUV Types',
-                              ),
-                          ],
+                        IconButton(
+                          icon: Icon(Icons.menu, color: Colors.white),
+                          padding: EdgeInsets.zero,
+                          constraints: BoxConstraints(),
+                          onPressed: _toggleDrawer,
                         ),
-                        Row(
-                          children: [
-                            Container(
-                              padding: EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 6,
+                        // Debug button (only visible in debug mode) - moved to drawer
+                        Container(
+                          padding: EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.blue.withAlpha(50),
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(
+                                UserRole.driver.icon,
+                                color: Colors.blue,
+                                size: 14,
                               ),
-                              decoration: BoxDecoration(
-                                color: Colors.blue.withOpacity(0.2),
-                                borderRadius: BorderRadius.circular(16),
+                              SizedBox(width: 4),
+                              Text(
+                                'Driver Mode',
+                                style: TextStyle(
+                                  color: Colors.blue,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 12,
+                                ),
                               ),
-                              child: Row(
-                                children: [
-                                  Icon(
-                                    UserRole.driver.icon,
-                                    color: Colors.blue,
-                                    size: 16,
-                                  ),
-                                  SizedBox(width: 4),
-                                  Text(
-                                    'Driver Mode',
-                                    style: TextStyle(
-                                      color: Colors.blue,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
                         IconButton(
                           icon: Icon(Icons.person, color: Colors.white),
+                          padding: EdgeInsets.zero,
+                          constraints: BoxConstraints(),
                           onPressed: () {
                             Navigator.push(
                               context,
@@ -562,20 +546,23 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
                     ),
                   ),
 
-                  // Online Status Switch
+                  // Compact Online Status Switch
                   Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8.0,
+                      vertical: 4.0,
+                    ),
                     child: Container(
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 12,
+                        horizontal: 12,
+                        vertical: 6,
                       ),
                       decoration: BoxDecoration(
                         color:
                             _isOnline
-                                ? Colors.green.withOpacity(0.2)
-                                : Colors.red.withOpacity(0.2),
-                        borderRadius: BorderRadius.circular(10),
+                                ? Colors.green.withAlpha(50)
+                                : Colors.red.withAlpha(50),
+                        borderRadius: BorderRadius.circular(8),
                       ),
                       child: Row(
                         children: [
@@ -584,94 +571,121 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
                                 ? Icons.online_prediction
                                 : Icons.offline_bolt,
                             color: _isOnline ? Colors.green : Colors.red,
+                            size: 16,
                           ),
-                          const SizedBox(width: 8),
+                          const SizedBox(width: 4),
                           Text(
-                            _isOnline ? 'You are Online' : 'You are Offline',
+                            _isOnline ? 'Online' : 'Offline',
                             style: TextStyle(
                               color: _isOnline ? Colors.green : Colors.red,
                               fontWeight: FontWeight.bold,
+                              fontSize: 12,
                             ),
                           ),
                           const Spacer(),
-                          Switch(
-                            value: _isOnline,
-                            onChanged: (value) {
-                              setState(() {
-                                _isOnline = value;
-                                // Set location visibility based on online status
-                                _isLocationVisibleToCommuters = value;
-                              });
+                          Transform.scale(
+                            scale: 0.8,
+                            child: Switch(
+                              value: _isOnline,
+                              onChanged: (value) {
+                                setState(() {
+                                  _isOnline = value;
+                                  // Set location visibility based on online status
+                                  _isLocationVisibleToCommuters = value;
+                                });
 
-                              // Update map visibility
-                              if (_mapKey.currentState != null) {
-                                _mapKey.currentState!
-                                    .updateUserLocationVisibility(
-                                      _isLocationVisibleToCommuters,
+                                // Update map visibility
+                                if (_mapKey.currentState != null) {
+                                  _mapKey.currentState!
+                                      .updateUserLocationVisibility(
+                                        _isLocationVisibleToCommuters,
+                                      );
+
+                                  // Start or stop tracking commuters based on online status
+                                  if (_isOnline) {
+                                    // Debug print to verify the PUV type being passed
+                                    debugPrint(
+                                      'Starting to track commuters with PUV type: $selectedPUVType',
                                     );
-
-                                // Start or stop tracking commuters based on online status
-                                if (_isOnline) {
-                                  // Debug print to verify the PUV type being passed
-                                  debugPrint(
-                                    'Starting to track commuters with PUV type: $selectedPUVType',
-                                  );
-                                  _mapKey.currentState!.startTrackingCommuters(
-                                    selectedPUVType,
-                                  );
-                                } else {
-                                  debugPrint(
-                                    'Stopping commuter tracking (offline)',
-                                  );
-                                  _mapKey.currentState!.startTrackingCommuters(
-                                    null,
-                                  );
+                                    _mapKey.currentState!
+                                        .startTrackingCommuters(
+                                          selectedPUVType,
+                                        );
+                                  } else {
+                                    debugPrint(
+                                      'Stopping commuter tracking (offline)',
+                                    );
+                                    _mapKey.currentState!
+                                        .startTrackingCommuters(null);
+                                  }
                                 }
-                              }
 
-                              // Show confirmation about location visibility
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text(
-                                    _isLocationVisibleToCommuters
-                                        ? 'You are now online and visible to commuters'
-                                        : 'You are now offline and hidden from commuters',
-                                  ),
-                                  backgroundColor:
+                                // Show confirmation about location visibility
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(
                                       _isLocationVisibleToCommuters
-                                          ? Colors.green
-                                          : Colors.red,
-                                  duration: Duration(seconds: 2),
-                                ),
-                              );
-                            },
-                            activeColor: Colors.green,
-                            activeTrackColor: Colors.green.withOpacity(0.5),
+                                          ? 'You are now online and visible to commuters'
+                                          : 'You are now offline and hidden from commuters',
+                                    ),
+                                    backgroundColor:
+                                        _isLocationVisibleToCommuters
+                                            ? Colors.green
+                                            : Colors.red,
+                                    duration: Duration(seconds: 2),
+                                  ),
+                                );
+                              },
+                              activeColor: Colors.green,
+                              activeTrackColor: Colors.green.withAlpha(128),
+                            ),
                           ),
                         ],
                       ),
                     ),
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 8),
 
-                  // PUV Type Selection
+                  // Compact PUV Type Selection
                   Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                    padding: const EdgeInsets.symmetric(horizontal: 8.0),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text(
-                          'Select Your PUV Type',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                          ),
+                        Row(
+                          children: [
+                            const Text(
+                              'Select Your PUV Type',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 14,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const Spacer(),
+                            if (_selectedRoute != null)
+                              TextButton(
+                                onPressed: _clearRoute,
+                                style: TextButton.styleFrom(
+                                  padding: EdgeInsets.zero,
+                                  minimumSize: Size(0, 0),
+                                  tapTargetSize:
+                                      MaterialTapTargetSize.shrinkWrap,
+                                ),
+                                child: const Text(
+                                  'Clear Route',
+                                  style: TextStyle(
+                                    color: Colors.white70,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ),
+                          ],
                         ),
-                        const SizedBox(height: 10),
+                        const SizedBox(height: 4),
                         SizedBox(
                           width: double.infinity,
-                          height: 80, // Fixed height
+                          height: 65, // Reduced height
                           child: SingleChildScrollView(
                             scrollDirection: Axis.horizontal,
                             child: Row(
@@ -681,11 +695,10 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
                                         selectedPUVType == entry.key;
                                     return Padding(
                                       padding: const EdgeInsets.only(
-                                        right: 8.0,
+                                        right: 6.0,
                                       ),
                                       child: SizedBox(
-                                        width:
-                                            80, // Fixed width for consistent sizing
+                                        width: 70, // Reduced width
                                         child: ElevatedButton(
                                           onPressed: () {
                                             setState(() {
@@ -719,9 +732,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
                                                     : Colors.white.withAlpha(
                                                       25,
                                                     ),
-                                            padding:
-                                                EdgeInsets
-                                                    .zero, // Remove padding
+                                            padding: EdgeInsets.zero,
                                             shape: RoundedRectangleBorder(
                                               borderRadius:
                                                   BorderRadius.circular(8),
@@ -729,7 +740,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
                                           ),
                                           child: Padding(
                                             padding: const EdgeInsets.symmetric(
-                                              vertical: 8.0,
+                                              vertical: 6.0,
                                             ),
                                             child: Column(
                                               mainAxisSize: MainAxisSize.min,
@@ -748,8 +759,8 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
                                                         ConnectionState
                                                             .waiting) {
                                                       return SizedBox(
-                                                        width: 24,
-                                                        height: 24,
+                                                        width: 20,
+                                                        height: 20,
                                                         child: CircularProgressIndicator(
                                                           strokeWidth: 2,
                                                           color:
@@ -770,32 +781,20 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
                                                                   ? Colors.white
                                                                   : Colors
                                                                       .white70,
-                                                          size: 24,
+                                                          size: 20,
                                                         );
                                                   },
                                                 ),
-                                                const SizedBox(height: 4),
-                                                // PUV Type Name
+                                                const SizedBox(height: 2),
+                                                // PUV Type Name and count in one line
                                                 Text(
-                                                  entry.key,
+                                                  '${entry.key} (${entry.value})',
                                                   style: TextStyle(
                                                     color:
                                                         isSelected
                                                             ? Colors.white
                                                             : Colors.white70,
                                                     fontWeight: FontWeight.bold,
-                                                    fontSize: 12,
-                                                  ),
-                                                  textAlign: TextAlign.center,
-                                                ),
-                                                // Available count - smaller and more subtle
-                                                Text(
-                                                  '${entry.value}',
-                                                  style: TextStyle(
-                                                    color:
-                                                        isSelected
-                                                            ? Colors.white70
-                                                            : Colors.white54,
                                                     fontSize: 10,
                                                   ),
                                                   textAlign: TextAlign.center,
@@ -813,50 +812,33 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
                       ],
                     ),
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 4),
 
-                  // Available Routes Section
+                  // Compact Available Routes Section
                   if (routes.isNotEmpty)
                     Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                      padding: const EdgeInsets.symmetric(horizontal: 8.0),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              const Text(
-                                'Select Your Route',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              if (_selectedRoute != null)
-                                TextButton.icon(
-                                  icon: const Icon(
-                                    Icons.clear,
-                                    color: Colors.white70,
-                                    size: 16,
-                                  ),
-                                  label: const Text(
-                                    'Clear Route',
-                                    style: TextStyle(color: Colors.white70),
-                                  ),
-                                  onPressed: _clearRoute,
-                                ),
-                            ],
+                          const Text(
+                            'Select Your Route',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
-                          const SizedBox(height: 6),
+                          const SizedBox(height: 4),
                           SizedBox(
                             width: double.infinity,
-                            height: 105,
+                            height: 85, // Reduced height
                             child:
                                 _isLoadingRoutes
                                     ? const Center(
                                       child: CircularProgressIndicator(
                                         color: Colors.blue,
+                                        strokeWidth: 2,
                                       ),
                                     )
                                     : ListView.builder(
@@ -896,21 +878,21 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
                           ),
                         ),
 
-                        // Visibility button positioned at the left side of the locator button
+                        // Compact visibility button
                         Positioned(
                           right:
-                              64, // Positioned to the left of the locator button
-                          top: 16,
+                              56, // Positioned to the left of the locator button
+                          top: 10,
                           child: Material(
-                            elevation: 4,
-                            borderRadius: BorderRadius.circular(16),
+                            elevation: 3,
+                            borderRadius: BorderRadius.circular(12),
                             child: Container(
                               decoration: BoxDecoration(
                                 color:
                                     _isLocationVisibleToCommuters
                                         ? Colors.green.withAlpha(230)
                                         : Colors.red.withAlpha(230),
-                                borderRadius: BorderRadius.circular(16),
+                                borderRadius: BorderRadius.circular(12),
                               ),
                               child: Tooltip(
                                 message:
@@ -919,20 +901,15 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
                                         : 'Your location is hidden from commuters',
                                 child: InkWell(
                                   onTap: _toggleLocationVisibility,
-                                  borderRadius: BorderRadius.circular(16),
+                                  borderRadius: BorderRadius.circular(12),
                                   child: Padding(
-                                    padding: const EdgeInsets.all(6.0),
-                                    child: Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        Icon(
-                                          _isLocationVisibleToCommuters
-                                              ? Icons.visibility
-                                              : Icons.visibility_off,
-                                          color: Colors.white,
-                                          size: 16,
-                                        ),
-                                      ],
+                                    padding: const EdgeInsets.all(4.0),
+                                    child: Icon(
+                                      _isLocationVisibleToCommuters
+                                          ? Icons.visibility
+                                          : Icons.visibility_off,
+                                      color: Colors.white,
+                                      size: 14,
                                     ),
                                   ),
                                 ),
@@ -941,22 +918,34 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
                           ),
                         ),
 
-                        // Map refresher button positioned below the locator button
+                        // Compact map refresher button
                         Positioned(
-                          right: 16,
-                          top: 70, // Positioned below the locator button
-                          child: FloatingActionButton(
-                            heroTag: 'mapRefresher',
-                            onPressed: () {
-                              if (_mapKey.currentState != null) {
-                                _mapKey.currentState!.initializeLocation();
-                              }
-                            },
-                            backgroundColor: Colors.white,
-                            mini: true,
-                            child: const Icon(
-                              Icons.refresh,
-                              color: Colors.blue,
+                          right: 10,
+                          top: 56, // Positioned below the locator button
+                          child: Material(
+                            elevation: 3,
+                            borderRadius: BorderRadius.circular(12),
+                            child: Container(
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: InkWell(
+                                onTap: () {
+                                  if (_mapKey.currentState != null) {
+                                    _mapKey.currentState!.initializeLocation();
+                                  }
+                                },
+                                borderRadius: BorderRadius.circular(12),
+                                child: Padding(
+                                  padding: const EdgeInsets.all(4.0),
+                                  child: Icon(
+                                    Icons.refresh,
+                                    color: Colors.blue,
+                                    size: 14,
+                                  ),
+                                ),
+                              ),
                             ),
                           ),
                         ),

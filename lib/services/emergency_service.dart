@@ -17,6 +17,10 @@ class EmergencyService {
   CollectionReference<Map<String, dynamic>> get _alertsCollection =>
       _firestore.collection('emergency_alerts');
 
+  /// Get collection reference for family groups
+  CollectionReference<Map<String, dynamic>> get _groupsCollection =>
+      _firestore.collection('family_groups');
+
   /// Get the current user ID
   String? get _currentUserId => _auth.currentUser?.uid;
 
@@ -282,6 +286,80 @@ class EmergencyService {
     } catch (e) {
       debugPrint('Error getting user alerts: $e');
       return [];
+    }
+  }
+
+  /// Sync family members as emergency contacts
+  Future<bool> syncFamilyMembersAsContacts() async {
+    if (_currentUserId == null) return false;
+
+    try {
+      // Get the user's current family group ID
+      final userDoc =
+          await _firestore.collection('users').doc(_currentUserId).get();
+      final familyGroupId = userDoc.data()?['familyGroupId'];
+
+      if (familyGroupId == null) {
+        return false; // User is not in a family group
+      }
+
+      // Get the family group document
+      final groupDoc =
+          await _firestore.collection('family_groups').doc(familyGroupId).get();
+      if (!groupDoc.exists) {
+        return false;
+      }
+
+      final groupData = groupDoc.data() as Map<String, dynamic>;
+      final members = List<String>.from(groupData['members'] ?? []);
+
+      // Remove the current user from the list
+      members.remove(_currentUserId);
+
+      if (members.isEmpty) {
+        return false; // No other family members
+      }
+
+      // Get existing emergency contacts
+      final existingContacts = await getEmergencyContacts();
+      final existingContactIds = existingContacts.map((c) => c.id).toList();
+
+      // Get details for each family member
+      bool anyAdded = false;
+      for (final memberId in members) {
+        final memberDoc =
+            await _firestore.collection('users').doc(memberId).get();
+        if (memberDoc.exists) {
+          final userData = memberDoc.data() as Map<String, dynamic>;
+          final displayName = userData['displayName'] ?? 'Family Member';
+          final phoneNumber = userData['phoneNumber'] ?? 'N/A';
+          final email = userData['email'] ?? '';
+
+          // Check if this member is already an emergency contact
+          final memberContactId = 'family_$memberId';
+          if (!existingContactIds.contains(memberContactId)) {
+            // Create a new emergency contact for this family member
+            final newContact = EmergencyContact(
+              id: memberContactId,
+              name: displayName,
+              phoneNumber: phoneNumber,
+              email: email,
+              relationship: 'Family',
+              notifyInEmergency: true,
+              priority: 1, // Family members get highest priority
+            );
+
+            // Add the contact
+            await addEmergencyContact(newContact);
+            anyAdded = true;
+          }
+        }
+      }
+
+      return anyAdded;
+    } catch (e) {
+      debugPrint('Error syncing family members as contacts: $e');
+      return false;
     }
   }
 }

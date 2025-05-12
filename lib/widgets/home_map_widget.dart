@@ -621,9 +621,9 @@ class HomeMapWidgetState extends State<HomeMapWidget> {
       final AssetImage assetImage = AssetImage(iconPath);
       await precacheImage(assetImage, context);
 
-      // Load the custom icon using the non-deprecated method with 64x64 size
+      // Load the custom icon using the non-deprecated method with 86x86 size
       final icon = await BitmapDescriptor.fromAssetImage(
-        const ImageConfiguration(size: Size(64, 64)),
+        const ImageConfiguration(size: Size(86, 86)),
         iconPath,
       );
 
@@ -667,9 +667,9 @@ class HomeMapWidgetState extends State<HomeMapWidget> {
       final AssetImage assetImage = AssetImage(iconPath);
       await precacheImage(assetImage, context);
 
-      // Load the custom icon using the non-deprecated method with 64x64 size
+      // Load the custom icon using the non-deprecated method with 86x86 size
       final icon = await BitmapDescriptor.fromAssetImage(
-        const ImageConfiguration(size: Size(64, 64)),
+        const ImageConfiguration(size: Size(86, 86)),
         iconPath,
       );
 

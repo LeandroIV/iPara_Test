@@ -50,9 +50,9 @@ class _FamilyGroupScreenState extends State<FamilyGroupScreen> {
         });
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error loading family group: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error loading family group: $e')));
     } finally {
       setState(() {
         _isLoading = false;
@@ -64,29 +64,30 @@ class _FamilyGroupScreenState extends State<FamilyGroupScreen> {
     _groupNameController.text = 'My Family Group';
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Create Family Group'),
-        content: TextField(
-          controller: _groupNameController,
-          decoration: const InputDecoration(
-            labelText: 'Group Name',
-            hintText: 'Enter a name for your family group',
+      builder:
+          (context) => AlertDialog(
+            title: const Text('Create Family Group'),
+            content: TextField(
+              controller: _groupNameController,
+              decoration: const InputDecoration(
+                labelText: 'Group Name',
+                hintText: 'Enter a name for your family group',
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                onPressed: () async {
+                  Navigator.pop(context);
+                  await _createFamilyGroup();
+                },
+                child: const Text('Create'),
+              ),
+            ],
           ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              Navigator.pop(context);
-              await _createFamilyGroup();
-            },
-            child: const Text('Create'),
-          ),
-        ],
-      ),
     );
   }
 
@@ -141,34 +142,35 @@ class _FamilyGroupScreenState extends State<FamilyGroupScreen> {
     _inviteCodeController.clear();
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Join Family Group'),
-        content: TextField(
-          controller: _inviteCodeController,
-          decoration: const InputDecoration(
-            labelText: 'Invite Code',
-            hintText: 'Enter the 6-character invite code',
+      builder:
+          (context) => AlertDialog(
+            title: const Text('Join Family Group'),
+            content: TextField(
+              controller: _inviteCodeController,
+              decoration: const InputDecoration(
+                labelText: 'Invite Code',
+                hintText: 'Enter the 6-character invite code',
+              ),
+              inputFormatters: [
+                FilteringTextInputFormatter.allow(RegExp(r'[A-Z0-9]')),
+                LengthLimitingTextInputFormatter(6),
+              ],
+              textCapitalization: TextCapitalization.characters,
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                onPressed: () async {
+                  Navigator.pop(context);
+                  await _joinFamilyGroup();
+                },
+                child: const Text('Join'),
+              ),
+            ],
           ),
-          inputFormatters: [
-            FilteringTextInputFormatter.allow(RegExp(r'[A-Z0-9]')),
-            LengthLimitingTextInputFormatter(6),
-          ],
-          textCapitalization: TextCapitalization.characters,
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              Navigator.pop(context);
-              await _joinFamilyGroup();
-            },
-            child: const Text('Join'),
-          ),
-        ],
-      ),
     );
   }
 
@@ -208,9 +210,9 @@ class _FamilyGroupScreenState extends State<FamilyGroupScreen> {
         );
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error joining family group: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error joining family group: $e')));
     } finally {
       setState(() {
         _isLoading = false;
@@ -221,27 +223,28 @@ class _FamilyGroupScreenState extends State<FamilyGroupScreen> {
   Future<void> _leaveFamilyGroup() async {
     final confirm = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Leave Family Group'),
-        content: const Text(
-          'Are you sure you want to leave this family group? '
-          'If you are the host, another member will become the host.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
-              foregroundColor: Colors.white,
+      builder:
+          (context) => AlertDialog(
+            title: const Text('Leave Family Group'),
+            content: const Text(
+              'Are you sure you want to leave this family group? '
+              'If you are the host, another member will become the host.',
             ),
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Leave'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.red,
+                  foregroundColor: Colors.white,
+                ),
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('Leave'),
+              ),
+            ],
           ),
-        ],
-      ),
     );
 
     if (confirm != true) return;
@@ -273,9 +276,9 @@ class _FamilyGroupScreenState extends State<FamilyGroupScreen> {
         );
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error leaving family group: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error leaving family group: $e')));
     } finally {
       setState(() {
         _isLoading = false;
@@ -285,7 +288,7 @@ class _FamilyGroupScreenState extends State<FamilyGroupScreen> {
 
   void _copyInviteCode() {
     if (_familyGroup == null) return;
-    
+
     Clipboard.setData(ClipboardData(text: _familyGroup!.inviteCode));
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Invite code copied to clipboard')),
@@ -294,7 +297,7 @@ class _FamilyGroupScreenState extends State<FamilyGroupScreen> {
 
   void _navigateToFamilyMap() {
     if (_familyGroup == null) return;
-    
+
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -311,9 +314,10 @@ class _FamilyGroupScreenState extends State<FamilyGroupScreen> {
         backgroundColor: Colors.black,
         foregroundColor: Colors.amber,
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : _buildContent(),
+      body:
+          _isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : _buildContent(),
     );
   }
 
@@ -330,11 +334,7 @@ class _FamilyGroupScreenState extends State<FamilyGroupScreen> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Icon(
-            Icons.group_off,
-            size: 80,
-            color: Colors.grey,
-          ),
+          const Icon(Icons.group_off, size: 80, color: Colors.grey),
           const SizedBox(height: 16),
           const Text(
             'You are not in a family group',
@@ -373,10 +373,12 @@ class _FamilyGroupScreenState extends State<FamilyGroupScreen> {
   }
 
   Widget _buildGroupContent() {
-    final isHost = _familyGroup!.hostId == _members.firstWhere(
-      (m) => m['isHost'],
-      orElse: () => {'userId': ''},
-    )['userId'];
+    final isHost =
+        _familyGroup!.hostId ==
+        _members.firstWhere(
+          (m) => m['isHost'],
+          orElse: () => {'userId': ''},
+        )['userId'];
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
@@ -394,18 +396,27 @@ class _FamilyGroupScreenState extends State<FamilyGroupScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(
-                        _familyGroup!.groupName,
-                        style: const TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
+                      Expanded(
+                        child: Text(
+                          _familyGroup!.groupName,
+                          style: const TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                       ),
-                      IconButton(
-                        icon: const Icon(Icons.map),
+                      ElevatedButton.icon(
+                        icon: const Icon(Icons.map, size: 18),
+                        label: const Text('View on Map'),
                         onPressed: _navigateToFamilyMap,
-                        tooltip: 'View on Map',
-                        color: Colors.amber,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.amber,
+                          foregroundColor: Colors.black,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 8,
+                          ),
+                        ),
                       ),
                     ],
                   ),
@@ -446,14 +457,14 @@ class _FamilyGroupScreenState extends State<FamilyGroupScreen> {
               ),
             ),
           ),
-          
+
           const SizedBox(height: 24),
           const Text(
             'Members',
             style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 8),
-          
+
           // Members list
           Card(
             elevation: 2,
@@ -466,7 +477,8 @@ class _FamilyGroupScreenState extends State<FamilyGroupScreen> {
                 final member = _members[index];
                 return ListTile(
                   leading: CircleAvatar(
-                    backgroundColor: member['isHost'] ? Colors.amber : Colors.grey[300],
+                    backgroundColor:
+                        member['isHost'] ? Colors.amber : Colors.grey[300],
                     child: Icon(
                       Icons.person,
                       color: member['isHost'] ? Colors.black : Colors.grey[700],
@@ -475,7 +487,10 @@ class _FamilyGroupScreenState extends State<FamilyGroupScreen> {
                   title: Text(
                     member['displayName'] ?? 'Unknown User',
                     style: TextStyle(
-                      fontWeight: member['isHost'] ? FontWeight.bold : FontWeight.normal,
+                      fontWeight:
+                          member['isHost']
+                              ? FontWeight.bold
+                              : FontWeight.normal,
                     ),
                   ),
                   subtitle: Text(
@@ -484,27 +499,45 @@ class _FamilyGroupScreenState extends State<FamilyGroupScreen> {
                       color: member['isHost'] ? Colors.amber : Colors.grey,
                     ),
                   ),
-                  trailing: member['userId'] == _members.firstWhere(
-                    (m) => m['isHost'],
-                    orElse: () => {'userId': ''},
-                  )['userId']
-                      ? const Icon(Icons.star, color: Colors.amber)
-                      : null,
+                  trailing:
+                      member['userId'] ==
+                              _members.firstWhere(
+                                (m) => m['isHost'],
+                                orElse: () => {'userId': ''},
+                              )['userId']
+                          ? const Icon(Icons.star, color: Colors.amber)
+                          : null,
                 );
               },
             ),
           ),
-          
+
           const SizedBox(height: 32),
           Center(
-            child: ElevatedButton.icon(
-              icon: const Icon(Icons.exit_to_app),
-              label: const Text('Leave Family Group'),
-              onPressed: _leaveFamilyGroup,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.red,
-                foregroundColor: Colors.white,
-              ),
+            child: Column(
+              children: [
+                ElevatedButton.icon(
+                  icon: const Icon(Icons.map),
+                  label: const Text('View Family on Map'),
+                  onPressed: _navigateToFamilyMap,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.amber,
+                    foregroundColor: Colors.black,
+                    minimumSize: const Size(double.infinity, 50),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                ElevatedButton.icon(
+                  icon: const Icon(Icons.exit_to_app),
+                  label: const Text('Leave Family Group'),
+                  onPressed: _leaveFamilyGroup,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.red,
+                    foregroundColor: Colors.white,
+                    minimumSize: const Size(double.infinity, 50),
+                  ),
+                ),
+              ],
             ),
           ),
         ],

@@ -40,7 +40,7 @@ class _TestIconsScreenState extends State<TestIconsScreen> {
   Set<Marker> _markers = {};
   bool _isLoading = true;
   GoogleMapController? _mapController;
-  
+
   // Center on CDO, Philippines
   final LatLng _initialPosition = const LatLng(8.4542, 124.6319);
 
@@ -58,7 +58,7 @@ class _TestIconsScreenState extends State<TestIconsScreen> {
     try {
       // Create test markers for each PUV type
       final Set<Marker> markers = {};
-      
+
       // Create test locations around the center
       final locations = {
         'Bus': const LatLng(8.4542, 124.6319),
@@ -66,15 +66,15 @@ class _TestIconsScreenState extends State<TestIconsScreen> {
         'Multicab': const LatLng(8.4542, 124.6319 + 0.005),
         'Motorela': const LatLng(8.4542 - 0.005, 124.6319),
       };
-      
+
       // Create markers for each PUV type
       for (final entry in locations.entries) {
         final puvType = entry.key;
         final location = entry.value;
-        
+
         // Get the appropriate icon
         final icon = await _getDriverIcon(puvType);
-        
+
         // Create the marker
         final marker = Marker(
           markerId: MarkerId('test_$puvType'),
@@ -85,11 +85,11 @@ class _TestIconsScreenState extends State<TestIconsScreen> {
           flat: true, // Make the marker flat on the map
           anchor: const Offset(0.5, 0.5), // Center the marker
         );
-        
+
         markers.add(marker);
         debugPrint('Created marker for $puvType');
       }
-      
+
       setState(() {
         _markers = markers;
         _isLoading = false;
@@ -101,7 +101,7 @@ class _TestIconsScreenState extends State<TestIconsScreen> {
       });
     }
   }
-  
+
   Future<BitmapDescriptor> _getDriverIcon(String puvType) async {
     // Use custom PUV icons with highlight for map markers
     String iconPath;
@@ -119,33 +119,43 @@ class _TestIconsScreenState extends State<TestIconsScreen> {
         iconPath = 'assets/icons/motorela_highlight.png';
         break;
       default:
-        return BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueViolet);
+        return BitmapDescriptor.defaultMarkerWithHue(
+          BitmapDescriptor.hueViolet,
+        );
     }
 
     try {
       // Debug print to check which icon is being loaded
       debugPrint('Loading icon for PUV type: $puvType from path: $iconPath');
-      
-      // Load the custom icon with larger size (64x64)
+
+      // Load the custom icon with larger size (86x86)
       return await BitmapDescriptor.fromAssetImage(
-        const ImageConfiguration(size: Size(64, 64)),
+        const ImageConfiguration(size: Size(86, 86)),
         iconPath,
       );
     } catch (e) {
       debugPrint('Error loading PUV icon: $e, using default marker instead');
-      
+
       // Select the appropriate fallback icon based on PUV type
       switch (puvType.toLowerCase()) {
         case 'bus':
-          return BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueBlue);
+          return BitmapDescriptor.defaultMarkerWithHue(
+            BitmapDescriptor.hueBlue,
+          );
         case 'jeepney':
-          return BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueYellow);
+          return BitmapDescriptor.defaultMarkerWithHue(
+            BitmapDescriptor.hueYellow,
+          );
         case 'multicab':
-          return BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen);
+          return BitmapDescriptor.defaultMarkerWithHue(
+            BitmapDescriptor.hueGreen,
+          );
         case 'motorela':
           return BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed);
         default:
-          return BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure);
+          return BitmapDescriptor.defaultMarkerWithHue(
+            BitmapDescriptor.hueAzure,
+          );
       }
     }
   }
@@ -156,10 +166,7 @@ class _TestIconsScreenState extends State<TestIconsScreen> {
       appBar: AppBar(
         title: const Text('Test PUV Icons'),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: _loadIcons,
-          ),
+          IconButton(icon: const Icon(Icons.refresh), onPressed: _loadIcons),
         ],
       ),
       body: Column(
@@ -205,7 +212,7 @@ class _TestIconsScreenState extends State<TestIconsScreen> {
                 Text('Multicab: Green marker east of center'),
                 Text('Motorela: Red marker south of center'),
                 const SizedBox(height: 8),
-                Text('All icons should be 64x64 pixels with no rotation'),
+                Text('All icons should be 86x86 pixels with no rotation'),
               ],
             ),
           ),

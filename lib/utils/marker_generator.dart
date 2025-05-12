@@ -101,9 +101,9 @@ class MarkerGenerator {
       // Debug print to check which icon is being loaded
       debugPrint('Loading icon for PUV type: $puvType from path: $iconPath');
 
-      // Load the custom icon using the recommended method with larger size (64x64) for all vehicle types
+      // Load the custom icon using the recommended method with larger size (86x86) for all vehicle types
       final icon = await BitmapDescriptor.fromAssetImage(
-        const ImageConfiguration(size: Size(64, 64)),
+        const ImageConfiguration(size: Size(86, 86)),
         iconPath,
       );
 
@@ -205,9 +205,9 @@ class MarkerGenerator {
 
     // Use custom person icon for commuters
     try {
-      // Use the recommended method
+      // Use the recommended method with larger size (86x86)
       final icon = await BitmapDescriptor.fromAssetImage(
-        const ImageConfiguration(size: Size(48, 48)),
+        const ImageConfiguration(size: Size(86, 86)),
         'assets/icons/person.png',
       );
 

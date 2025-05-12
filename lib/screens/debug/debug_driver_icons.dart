@@ -176,7 +176,7 @@ class _DebugDriverIconsScreenState extends State<DebugDriverIconsScreen> {
     try {
       // Load the custom icon using the non-deprecated method
       return BitmapDescriptor.fromAssetImage(
-        const ImageConfiguration(size: Size(64, 64)),
+        const ImageConfiguration(size: Size(86, 86)),
         iconPath,
       );
     } catch (e) {

@@ -314,6 +314,34 @@ class RouteService {
         colorValue: 0xFF3F51B5, // Indigo
         isActive: true,
       ),
+      PUVRoute(
+        id: 'RC',
+        name: 'RC - Cugman - Velez - Divisoria - Cogon',
+        description: 'Route from Cugman to Cogon via Velez',
+        puvType: 'Bus',
+        routeCode: 'RC',
+        waypoints: [
+          const LatLng(8.469449, 124.705358), // Cugman
+          const LatLng(8.469031, 124.703102), // U-turn
+          const LatLng(8.482910, 124.646112), // Velez_main
+          const LatLng(8.486411, 124.648293), // Velez
+          const LatLng(8.480066, 124.644827), // D-Morvie
+          const LatLng(8.480302, 124.643627), // Rizal
+          const LatLng(8.477783, 124.643120), // Divisoria
+          const LatLng(8.477131, 124.646014), // xavier
+          const LatLng(8.477219, 124.649640), // Borja
+          const LatLng(8.476823, 124.652875), // Cogon
+          const LatLng(8.477613, 124.653608), // pearlmont
+          const LatLng(8.484305, 124.657059), // Shakeys
+          const LatLng(8.469449, 124.705358), // Cugman
+        ],
+        startPointName: 'Cugman',
+        endPointName: 'Cogon Market',
+        estimatedTravelTime: 40,
+        farePrice: 12.0,
+        colorValue: 0xFFFFC0CB, // Pink
+        isActive: true,
+      ),
       // New Multicab Route: RB - Pier to Macabalan
       PUVRoute(
         id: 'RB',
@@ -323,11 +351,15 @@ class RouteService {
         routeCode: 'RB',
         waypoints: [
           const LatLng(8.498177, 124.660786), // Pier
-          const LatLng(8.486684, 124.650807), // Puregold/Gaisano
-          const LatLng(8.479595, 124.649240), // Cogon
-          const LatLng(8.485010, 124.647179), // Velez
+          const LatLng(8.489390, 124.657666), // Agora
+          const LatLng(8.484315, 124.658291), // Puregold
+          const LatLng(8.480585, 124.657328), // limketkai
+          const LatLng(8.478014, 124.650861), // Cogon
+          const LatLng(8.480090, 124.644857), // Velez
           const LatLng(8.498178, 124.660057), // Julio Pacana St
-          const LatLng(8.503708, 124.659001), // Macabalan
+          const LatLng(8.502677, 124.664270), // Macabalan
+          const LatLng(8.503693, 124.659047), // Macabalan
+          const LatLng(8.498177, 124.660786), // Pier
         ],
         startPointName: 'Pier',
         endPointName: 'Macabalan',
@@ -344,11 +376,14 @@ class RouteService {
         puvType: 'Motorela',
         routeCode: 'BLUE',
         waypoints: [
-          const LatLng(8.488257, 124.657648), // Agora Market
-          const LatLng(8.488737, 124.654004), // Osmena
-          const LatLng(8.479595, 124.649240), // Cogon
-          const LatLng(8.484704, 124.656401), // USTP
-          const LatLng(8.488257, 124.657648), // Back to Agora
+          const LatLng(8.489290, 124.657606), // Agora Market
+          const LatLng(8.488186, 124.659699), // Agora - tulay semento
+          const LatLng(8.490775, 124.655332), // Osmena
+          const LatLng(8.484709, 124.653492), // Osmena
+          const LatLng(8.477754, 124.652605), // Cogon
+          const LatLng(8.485069, 124.653629), // U-Turn
+          const LatLng(8.490868, 124.655387), // Osmena
+          const LatLng(8.489290, 124.657606), // Agora Market
         ],
         startPointName: 'Agora',
         endPointName: 'Cogon',

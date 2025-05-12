@@ -4,19 +4,22 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 class EmergencyContact {
   /// Unique identifier for the contact
   final String id;
-  
+
   /// Name of the contact
   final String name;
-  
+
   /// Phone number of the contact
   final String phoneNumber;
-  
+
+  /// Email address of the contact
+  final String email;
+
   /// Relationship to the user (e.g., family, friend)
   final String relationship;
-  
+
   /// Whether this contact should be notified in emergencies
   final bool notifyInEmergency;
-  
+
   /// Priority order (lower number = higher priority)
   final int priority;
 
@@ -25,6 +28,7 @@ class EmergencyContact {
     required this.id,
     required this.name,
     required this.phoneNumber,
+    this.email = '',
     required this.relationship,
     this.notifyInEmergency = true,
     this.priority = 1,
@@ -35,6 +39,7 @@ class EmergencyContact {
     String? id,
     String? name,
     String? phoneNumber,
+    String? email,
     String? relationship,
     bool? notifyInEmergency,
     int? priority,
@@ -43,6 +48,7 @@ class EmergencyContact {
       id: id ?? this.id,
       name: name ?? this.name,
       phoneNumber: phoneNumber ?? this.phoneNumber,
+      email: email ?? this.email,
       relationship: relationship ?? this.relationship,
       notifyInEmergency: notifyInEmergency ?? this.notifyInEmergency,
       priority: priority ?? this.priority,
@@ -55,6 +61,7 @@ class EmergencyContact {
       id: id ?? map['id'] ?? '',
       name: map['name'] ?? '',
       phoneNumber: map['phoneNumber'] ?? '',
+      email: map['email'] ?? '',
       relationship: map['relationship'] ?? '',
       notifyInEmergency: map['notifyInEmergency'] ?? true,
       priority: map['priority'] ?? 1,
@@ -67,6 +74,7 @@ class EmergencyContact {
       'id': id,
       'name': name,
       'phoneNumber': phoneNumber,
+      'email': email,
       'relationship': relationship,
       'notifyInEmergency': notifyInEmergency,
       'priority': priority,
@@ -78,28 +86,28 @@ class EmergencyContact {
 class EmergencyAlert {
   /// Unique identifier for the alert
   final String id;
-  
+
   /// User ID who triggered the alert
   final String userId;
-  
+
   /// User's name
   final String userName;
-  
+
   /// Location of the emergency (latitude)
   final double latitude;
-  
+
   /// Location of the emergency (longitude)
   final double longitude;
-  
+
   /// When the alert was triggered
   final DateTime timestamp;
-  
+
   /// Current status of the alert
   final EmergencyAlertStatus status;
-  
+
   /// List of contact IDs who were notified
   final List<String> notifiedContacts;
-  
+
   /// Additional notes about the emergency
   final String? notes;
 
@@ -119,7 +127,7 @@ class EmergencyAlert {
   /// Create an alert from a Firebase document
   factory EmergencyAlert.fromFirestore(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
-    
+
     return EmergencyAlert(
       id: doc.id,
       userId: data['userId'] ?? '',
@@ -148,12 +156,7 @@ class EmergencyAlert {
 }
 
 /// Enum representing the status of an emergency alert
-enum EmergencyAlertStatus {
-  active,
-  responded,
-  resolved,
-  cancelled
-}
+enum EmergencyAlertStatus { active, responded, resolved, cancelled }
 
 /// Extension to provide additional functionality to EmergencyAlertStatus
 extension EmergencyAlertStatusExtension on EmergencyAlertStatus {
