@@ -6,41 +6,53 @@ service cloud.firestore {
       allow read: if request.auth != null && request.auth.uid == userId;
       allow write: if request.auth != null && request.auth.uid == userId;
     }
-    
+
     // Driver locations
     match /driver_locations/{locationId} {
       allow read: if request.auth != null; // All authenticated users can see driver locations
-      allow write: if request.auth != null && 
-                    request.auth.uid == resource.data.userId && 
+      allow write: if request.auth != null &&
+                    request.auth.uid == resource.data.userId &&
                     get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "driver";
     }
-    
+
     // Commuter locations - more restricted
     match /commuter_locations/{locationId} {
-      allow read: if request.auth != null && 
-                  (request.auth.uid == resource.data.userId || 
+      allow read: if request.auth != null &&
+                  (request.auth.uid == resource.data.userId ||
                    get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "driver");
-      allow write: if request.auth != null && 
+      allow write: if request.auth != null &&
                     request.auth.uid == resource.data.userId;
     }
-    
+
     // Routes are readable by all
     match /routes/{routeId} {
       allow read: if request.auth != null;
-      allow write: if request.auth != null && 
+      allow write: if request.auth != null &&
                      get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "operator";
     }
-    
+
     // Trip management
     match /active_trips/{tripId} {
-      allow read: if request.auth != null && 
-                   (request.auth.uid == resource.data.driverId || 
+      allow read: if request.auth != null &&
+                   (request.auth.uid == resource.data.driverId ||
                     request.auth.uid == resource.data.commuterId);
-      allow create: if request.auth != null && 
+      allow create: if request.auth != null &&
                       request.auth.uid == request.resource.data.driverId;
-      allow update: if request.auth != null && 
-                     (request.auth.uid == resource.data.driverId || 
+      allow update: if request.auth != null &&
+                     (request.auth.uid == resource.data.driverId ||
+                      request.auth.uid == resource.data.commuterId);
+    }
+
+    // Ride requests
+    match /ride_requests/{requestId} {
+      allow read: if request.auth != null &&
+                   (request.auth.uid == resource.data.driverId ||
+                    request.auth.uid == resource.data.commuterId);
+      allow create: if request.auth != null &&
+                      request.auth.uid == request.resource.data.commuterId;
+      allow update: if request.auth != null &&
+                     (request.auth.uid == resource.data.driverId ||
                       request.auth.uid == resource.data.commuterId);
     }
   }
-} 
+}

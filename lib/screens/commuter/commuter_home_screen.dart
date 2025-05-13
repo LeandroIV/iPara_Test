@@ -5,6 +5,10 @@ import '../../services/user_service.dart';
 import '../../widgets/home_map_widget.dart';
 import '../../services/route_service.dart';
 import '../../models/route_model.dart';
+import '../../services/ride_request_service.dart';
+import '../../models/ride_request_model.dart';
+import '../../models/driver_location_model.dart';
+import '../../services/location_service.dart';
 import '../edit_profile_screen.dart';
 import '../settings/settings_screen.dart';
 import '../family/family_group_screen.dart';
@@ -14,8 +18,10 @@ import 'trip_history_screen.dart';
 import 'favorite_routes_screen.dart';
 import 'notifications_screen.dart';
 import 'payment_screen.dart';
+import 'ride_requests_screen.dart';
 import 'dart:async';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class CommuterHomeScreen extends StatefulWidget {
@@ -50,6 +56,10 @@ class _CommuterHomeScreenState extends State<CommuterHomeScreen>
   bool _isLoadingRoutes = false;
   PUVRoute? _selectedRoute;
 
+  // Add RideRequestService
+  final RideRequestService _rideRequestService = RideRequestService();
+  bool _isRequestingRide = false;
+
   // Placeholder data for PUV counts
   final Map<String, int> puvCounts = {
     'Bus': 13, // Updated to include R3 route
@@ -74,6 +84,106 @@ class _CommuterHomeScreenState extends State<CommuterHomeScreen>
 
     // Load mock routes on startup
     _loadRoutes();
+
+    // Initialize location service
+    _initializeLocationService();
+  }
+
+  // Initialize the location service
+  Future<void> _initializeLocationService() async {
+    try {
+      final locationService = LocationService();
+      final firestore = FirebaseFirestore.instance;
+      final userId = FirebaseAuth.instance.currentUser?.uid;
+
+      if (userId == null) {
+        debugPrint(
+          'Cannot initialize location service: User not authenticated',
+        );
+        return;
+      }
+
+      // Get the user role from Firestore directly
+      try {
+        final userDoc = await firestore.collection('users').doc(userId).get();
+        if (userDoc.exists && userDoc.data()?['role'] != null) {
+          final roleIndex = userDoc.data()?['role'] as int;
+          String roleFromFirestore = '';
+
+          // Convert role index to string
+          switch (roleIndex) {
+            case 0:
+              roleFromFirestore = 'commuter';
+              break;
+            case 1:
+              roleFromFirestore = 'driver';
+              break;
+            case 2:
+              roleFromFirestore = 'operator';
+              break;
+            default:
+              roleFromFirestore = 'commuter';
+          }
+
+          if (roleFromFirestore != 'commuter') {
+            debugPrint(
+              'Warning: User role in Firestore is not commuter: $roleFromFirestore',
+            );
+            debugPrint('Updating user role in Firestore to commuter');
+
+            // Update the user role in Firestore to commuter
+            await firestore.collection('users').doc(userId).update({
+              'role': UserRole.commuter.index,
+              'updatedAt': FieldValue.serverTimestamp(),
+            });
+
+            debugPrint('User role updated to commuter in Firestore');
+          } else {
+            debugPrint('User role in Firestore is already commuter');
+          }
+        } else {
+          debugPrint('User document not found or role not set, creating it');
+
+          // Create the user document with commuter role
+          await firestore.collection('users').doc(userId).set({
+            'role': UserRole.commuter.index,
+            'displayName':
+                FirebaseAuth.instance.currentUser?.displayName ?? 'Commuter',
+            'email': FirebaseAuth.instance.currentUser?.email,
+            'updatedAt': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true));
+
+          debugPrint('User document created with commuter role');
+        }
+      } catch (e) {
+        debugPrint('Error checking/updating user role in Firestore: $e');
+      }
+
+      // Initialize with commuter role
+      await locationService.initialize('commuter');
+
+      // Start location tracking with visibility
+      await locationService.startLocationTracking(
+        isVisible: _isLocationVisibleToDrivers,
+      );
+
+      // Update the selected PUV type if one is already selected
+      if (selectedPUVType != null) {
+        await locationService.updateSelectedPuvType(selectedPUVType);
+        debugPrint('Started location tracking with PUV type: $selectedPUVType');
+      }
+    } catch (e) {
+      debugPrint('Error initializing location service: $e');
+      // Show error message
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error initializing location service: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   // Load routes from service (using Firestore data)
@@ -172,6 +282,16 @@ class _CommuterHomeScreenState extends State<CommuterHomeScreen>
     _drawerController.dispose();
     _destinationController.dispose();
     _debounceTimer?.cancel();
+
+    // Clean up location service
+    try {
+      final locationService = LocationService();
+      locationService.dispose();
+      debugPrint('Location service disposed');
+    } catch (e) {
+      debugPrint('Error disposing location service: $e');
+    }
+
     super.dispose();
   }
 
@@ -425,10 +545,21 @@ class _CommuterHomeScreenState extends State<CommuterHomeScreen>
   }
 
   // Toggle location visibility to drivers
-  void _toggleLocationVisibility() {
+  Future<void> _toggleLocationVisibility() async {
+    final bool newVisibility = !_isLocationVisibleToDrivers;
+
     setState(() {
-      _isLocationVisibleToDrivers = !_isLocationVisibleToDrivers;
+      _isLocationVisibleToDrivers = newVisibility;
     });
+
+    // Update the location service with the new visibility setting
+    try {
+      final locationService = LocationService();
+      await locationService.updateLocationVisibility(newVisibility);
+      debugPrint('Updated location visibility in Firestore: $newVisibility');
+    } catch (e) {
+      debugPrint('Error updating location visibility: $e');
+    }
 
     // Explicitly refresh the map to show/hide the user location pin immediately
     if (_mapKey.currentState != null) {
@@ -438,8 +569,8 @@ class _CommuterHomeScreenState extends State<CommuterHomeScreen>
     }
 
     // Show confirmation message
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
+    if (mounted) {
+      final snackBar = SnackBar(
         content: Text(
           _isLocationVisibleToDrivers
               ? 'Your location is now visible to drivers'
@@ -448,10 +579,118 @@ class _CommuterHomeScreenState extends State<CommuterHomeScreen>
         backgroundColor:
             _isLocationVisibleToDrivers ? Colors.green : Colors.red,
         duration: Duration(seconds: 2),
-      ),
-    );
+      );
 
-    // TODO: Implement actual location sharing logic with backend
+      ScaffoldMessenger.of(context).showSnackBar(snackBar);
+    }
+  }
+
+  // Request a ride from the nearest driver
+  Future<void> _requestRide() async {
+    if (selectedPUVType == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Please select a PUV type first'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+      return;
+    }
+
+    if (!mounted) return;
+
+    setState(() {
+      _isRequestingRide = true;
+    });
+
+    try {
+      // Find the nearest driver for the selected PUV type
+      final puvType = selectedPUVType!; // Store locally to avoid null issues
+      final nearestDriver = await _rideRequestService.getNearestDriver(puvType);
+
+      if (!mounted) return;
+
+      if (nearestDriver == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('No $puvType drivers available nearby'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        setState(() {
+          _isRequestingRide = false;
+        });
+        return;
+      }
+
+      // Create a ride request
+      final request = await _rideRequestService.createRideRequest(
+        driverId: nearestDriver.userId,
+        driverLocation: nearestDriver.location,
+        puvType: puvType,
+        driverName: nearestDriver.driverName,
+      );
+
+      if (!mounted) return;
+
+      if (request == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Failed to create ride request'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        setState(() {
+          _isRequestingRide = false;
+        });
+        return;
+      }
+
+      // Show success message with driver details
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Ride request sent to ${request.driverName ?? 'Driver'}'),
+              Text('Distance: ${request.distanceKm.toStringAsFixed(1)} km'),
+              Text('ETA: ${request.etaMinutes} minutes'),
+            ],
+          ),
+          backgroundColor: Colors.green,
+          duration: const Duration(seconds: 5),
+          action: SnackBarAction(
+            label: 'Cancel',
+            textColor: Colors.white,
+            onPressed: () {
+              _rideRequestService.updateRequestStatus(
+                request.id,
+                RideRequestStatus.cancelled,
+              );
+            },
+          ),
+        ),
+      );
+    } catch (e) {
+      debugPrint('Error requesting ride: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error requesting ride: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isRequestingRide = false;
+        });
+      }
+    }
   }
 
   // Get PUV type icon as a widget
@@ -821,7 +1060,9 @@ class _CommuterHomeScreenState extends State<CommuterHomeScreen>
                                         width:
                                             80, // Fixed width for consistent sizing
                                         child: ElevatedButton(
-                                          onPressed: () {
+                                          onPressed: () async {
+                                            String? newPuvType;
+
                                             setState(() {
                                               // Toggle selection if the same type is clicked again
                                               if (selectedPUVType ==
@@ -831,23 +1072,72 @@ class _CommuterHomeScreenState extends State<CommuterHomeScreen>
                                                 selectedPUVType = entry.key;
                                               }
 
+                                              // Store the new PUV type for use outside setState
+                                              newPuvType = selectedPUVType;
+
                                               // Clear any selected route when changing PUV type
                                               _selectedRoute = null;
-                                              if (_mapKey.currentState !=
-                                                  null) {
-                                                _mapKey.currentState!
-                                                    .clearRoutes(
-                                                      clearUserRoute: false,
-                                                      clearPUVRoute: true,
-                                                    );
-
-                                                // Start tracking drivers with the selected PUV type
-                                                _mapKey.currentState!
-                                                    .startTrackingDrivers(
-                                                      selectedPUVType,
-                                                    );
-                                              }
                                             });
+
+                                            // Update the location service with the new PUV type
+                                            final locationService =
+                                                LocationService();
+                                            await locationService
+                                                .updateSelectedPuvType(
+                                                  newPuvType,
+                                                );
+
+                                            if (newPuvType != null) {
+                                              debugPrint(
+                                                'Updated location service with PUV type: $newPuvType',
+                                              );
+                                            } else {
+                                              debugPrint(
+                                                'Cleared PUV type in location service',
+                                              );
+                                            }
+
+                                            if (_mapKey.currentState != null) {
+                                              _mapKey.currentState!.clearRoutes(
+                                                clearUserRoute: false,
+                                                clearPUVRoute: true,
+                                              );
+
+                                              // Start tracking drivers with the selected PUV type
+                                              _mapKey.currentState!
+                                                  .startTrackingDrivers(
+                                                    newPuvType,
+                                                  );
+                                            }
+
+                                            // Show Para button snackbar if a PUV type is selected
+                                            if (newPuvType != null && mounted) {
+                                              final snackBar = SnackBar(
+                                                content: Text(
+                                                  'Looking for a $newPuvType?',
+                                                ),
+                                                backgroundColor: Colors.amber,
+                                                duration: const Duration(
+                                                  seconds: 5,
+                                                ),
+                                                action: SnackBarAction(
+                                                  label: 'PARA',
+                                                  textColor: Colors.black,
+                                                  onPressed: () {
+                                                    _requestRide();
+                                                  },
+                                                ),
+                                              );
+
+                                              // Use a local context variable to avoid async gap issues
+                                              final scaffoldMessenger =
+                                                  ScaffoldMessenger.of(context);
+                                              if (mounted) {
+                                                scaffoldMessenger.showSnackBar(
+                                                  snackBar,
+                                                );
+                                              }
+                                            }
                                           },
                                           style: ElevatedButton.styleFrom(
                                             backgroundColor:
@@ -1275,6 +1565,21 @@ class _CommuterHomeScreenState extends State<CommuterHomeScreen>
                                           builder:
                                               (context) =>
                                                   const FavoriteRoutesScreen(),
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                  _buildDrawerItem(
+                                    icon: Icons.directions_car,
+                                    title: 'Ride Requests',
+                                    onTap: () {
+                                      _toggleDrawer();
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder:
+                                              (context) =>
+                                                  const RideRequestsScreen(),
                                         ),
                                       );
                                     },

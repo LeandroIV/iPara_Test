@@ -192,11 +192,11 @@ const routes = [
   },
   // New Multicab Route: RB - Pier to Macabalan
   {
-    id: 'RB',
-    name: 'RB - Pier-Puregold-Cogon-Velez-Julio Pacana-Macabalan',
+    id: 'RBC',
+    name: 'RBC - Pier-Puregold-Cogon-Velez-Julio Pacana-Macabalan',
     description: 'Route from Pier through city center to Macabalan',
     puvType: 'Multicab',
-    routeCode: 'RB',
+    routeCode: 'RBC',
     waypoints: [
       {latitude: 8.498177, longitude: 124.660786}, // Pier
       {latitude: 8.489390, longitude: 124.657666}, // Agora
@@ -210,7 +210,7 @@ const routes = [
       {latitude: 8.498177, longitude: 124.660786}, // Pier
     ],
     startPointName: 'Pier',
-    endPointName: 'Macabalan',
+    endPointName: 'Cogon',
     estimatedTravelTime: 35,
     farePrice: 12.0,
     colorValue: 0xFFFF5722, // Deep Orange

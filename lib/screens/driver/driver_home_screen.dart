@@ -5,6 +5,9 @@ import '../../services/user_service.dart';
 import '../../widgets/home_map_widget.dart';
 import '../../services/route_service.dart';
 import '../../models/route_model.dart';
+import '../../services/ride_request_service.dart';
+import '../../models/ride_request_model.dart';
+import '../../services/location_service.dart';
 import '../edit_profile_screen.dart';
 import '../notification_settings_screen.dart';
 import '../settings/settings_screen.dart';
@@ -15,11 +18,14 @@ import 'dart:async';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'vehicle_maintenance_screen.dart';
 import 'driver_trip_history_screen.dart';
 import 'driver_routes_screen.dart';
 import 'driver_earnings_screen.dart';
+import 'driver_ride_requests_screen.dart';
 import '../commuter/notifications_screen.dart';
+import '../../widgets/ride_request_floating_window.dart';
 
 class DriverHomeScreen extends StatefulWidget {
   const DriverHomeScreen({super.key});
@@ -45,6 +51,11 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
   bool _isLoadingRoutes = false;
   PUVRoute? _selectedRoute;
   String selectedPUVType = 'Jeepney';
+
+  // Add ride request service
+  final RideRequestService _rideRequestService = RideRequestService();
+  List<RideRequest> _pendingRideRequests = [];
+  StreamSubscription<List<RideRequest>>? _rideRequestsSubscription;
 
   // Add route panel minimized state
   bool _isRoutePanelMinimized = false;
@@ -77,6 +88,107 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
 
     // Load mock routes on startup
     _loadRoutes();
+
+    // Listen for ride requests
+    _listenForRideRequests();
+
+    // Initialize location service
+    _initializeLocationService();
+  }
+
+  // Initialize the location service
+  Future<void> _initializeLocationService() async {
+    try {
+      final locationService = LocationService();
+      final firestore = FirebaseFirestore.instance;
+      final userId = FirebaseAuth.instance.currentUser?.uid;
+
+      if (userId == null) {
+        debugPrint(
+          'Cannot initialize location service: User not authenticated',
+        );
+        return;
+      }
+
+      // Get the user role from Firestore directly
+      try {
+        final userDoc = await firestore.collection('users').doc(userId).get();
+        if (userDoc.exists && userDoc.data()?['role'] != null) {
+          final roleIndex = userDoc.data()?['role'] as int;
+          String roleFromFirestore = '';
+
+          // Convert role index to string
+          switch (roleIndex) {
+            case 0:
+              roleFromFirestore = 'commuter';
+              break;
+            case 1:
+              roleFromFirestore = 'driver';
+              break;
+            case 2:
+              roleFromFirestore = 'operator';
+              break;
+            default:
+              roleFromFirestore = 'commuter';
+          }
+
+          if (roleFromFirestore != 'driver') {
+            debugPrint(
+              'Warning: User role in Firestore is not driver: $roleFromFirestore',
+            );
+            debugPrint('Updating user role in Firestore to driver');
+
+            // Update the user role in Firestore to driver
+            await firestore.collection('users').doc(userId).update({
+              'role': UserRole.driver.index,
+              'updatedAt': FieldValue.serverTimestamp(),
+            });
+
+            debugPrint('User role updated to driver in Firestore');
+          } else {
+            debugPrint('User role in Firestore is already driver');
+          }
+        } else {
+          debugPrint('User document not found or role not set, creating it');
+
+          // Create the user document with driver role
+          await firestore.collection('users').doc(userId).set({
+            'role': UserRole.driver.index,
+            'displayName':
+                FirebaseAuth.instance.currentUser?.displayName ?? 'Driver',
+            'email': FirebaseAuth.instance.currentUser?.email,
+            'updatedAt': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true));
+
+          debugPrint('User document created with driver role');
+        }
+      } catch (e) {
+        debugPrint('Error checking/updating user role in Firestore: $e');
+      }
+
+      // Initialize with driver role
+      await locationService.initialize('driver');
+
+      // If online by default, start location tracking
+      if (_isOnline) {
+        await locationService.startLocationTracking(
+          isVisible: _isLocationVisibleToCommuters,
+        );
+        await locationService.updateSelectedPuvType(selectedPUVType);
+        debugPrint('Started location tracking with PUV type: $selectedPUVType');
+      }
+    } catch (e) {
+      debugPrint('Error initializing location service: $e');
+      // Show error message
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error initializing location service: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   // Load routes from service (using Firestore data)
@@ -166,7 +278,100 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
     _drawerController.dispose();
     _destinationController.dispose();
     _debounceTimer?.cancel();
+    _rideRequestsSubscription?.cancel();
     super.dispose();
+  }
+
+  // Listen for ride requests
+  void _listenForRideRequests() {
+    final userId = FirebaseAuth.instance.currentUser?.uid;
+    if (userId == null) return;
+
+    _rideRequestsSubscription = _rideRequestService.driverRequests.listen((
+      requests,
+    ) {
+      // Filter for pending requests only
+      final pendingRequests =
+          requests
+              .where((req) => req.status == RideRequestStatus.pending)
+              .toList();
+
+      setState(() {
+        _pendingRideRequests = pendingRequests;
+      });
+
+      // Show notification for new requests
+      if (pendingRequests.isNotEmpty) {
+        _showRideRequestNotification(pendingRequests.first);
+      }
+    });
+  }
+
+  // Current active ride request
+  RideRequest? _activeRideRequest;
+
+  // Show notification for a new ride request
+  void _showRideRequestNotification(RideRequest request) {
+    if (!mounted) return;
+
+    // Play notification sound or vibration here if needed
+
+    // Show a snackbar notification
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          'New ride request from ${request.commuterName ?? 'Commuter'}',
+        ),
+        backgroundColor: Colors.blue,
+        duration: const Duration(seconds: 2),
+      ),
+    );
+
+    // Set the active ride request to show the floating window
+    setState(() {
+      _activeRideRequest = request;
+    });
+  }
+
+  // Hide the ride request floating window
+  void _hideRideRequestWindow() {
+    setState(() {
+      _activeRideRequest = null;
+    });
+  }
+
+  // Respond to a ride request
+  Future<void> _respondToRideRequest(
+    RideRequest request,
+    RideRequestStatus status,
+  ) async {
+    try {
+      await _rideRequestService.updateRequestStatus(request.id, status);
+
+      if (status == RideRequestStatus.accepted) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'You accepted the ride request from ${request.commuterName ?? 'Commuter'}',
+              ),
+              backgroundColor: Colors.green,
+              duration: const Duration(seconds: 3),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      debugPrint('Error responding to ride request: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to respond to ride request: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   // Add search places method
@@ -324,20 +529,24 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
     }
 
     // Show confirmation message
+    _showStatusSnackBar();
+  }
+
+  // Show status snackbar based on online status
+  void _showStatusSnackBar() {
+    if (!mounted) return;
+
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
-          _isLocationVisibleToCommuters
-              ? 'Your location is now visible to commuters'
-              : 'Your location is now hidden from commuters',
+          _isOnline
+              ? 'You are now online and visible to commuters'
+              : 'You are now offline and hidden from commuters',
         ),
-        backgroundColor:
-            _isLocationVisibleToCommuters ? Colors.blue : Colors.red,
-        duration: Duration(seconds: 2),
+        backgroundColor: _isOnline ? Colors.green : Colors.red,
+        duration: const Duration(seconds: 2),
       ),
     );
-
-    // TODO: Implement actual location sharing logic with backend
   }
 
   // Get PUV type icon as a widget
@@ -524,12 +733,39 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
                             scale: 0.8,
                             child: Switch(
                               value: _isOnline,
-                              onChanged: (value) {
+                              onChanged: (value) async {
                                 setState(() {
                                   _isOnline = value;
                                   // Set location visibility based on online status
                                   _isLocationVisibleToCommuters = value;
                                 });
+
+                                // Import the location service
+                                final locationService = LocationService();
+
+                                // Start or stop location tracking based on online status
+                                if (_isOnline) {
+                                  // Start location tracking and update driver_locations in Firestore
+                                  await locationService.startLocationTracking(
+                                    isVisible: _isLocationVisibleToCommuters,
+                                  );
+
+                                  // Update the selected PUV type
+                                  await locationService.updateSelectedPuvType(
+                                    selectedPUVType,
+                                  );
+
+                                  // Debug print to verify the PUV type being passed
+                                  debugPrint(
+                                    'Starting to track commuters with PUV type: $selectedPUVType',
+                                  );
+                                } else {
+                                  // Stop location tracking
+                                  await locationService.stopLocationTracking();
+                                  debugPrint(
+                                    'Stopping location tracking (offline)',
+                                  );
+                                }
 
                                 // Update map visibility
                                 if (_mapKey.currentState != null) {
@@ -540,38 +776,18 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
 
                                   // Start or stop tracking commuters based on online status
                                   if (_isOnline) {
-                                    // Debug print to verify the PUV type being passed
-                                    debugPrint(
-                                      'Starting to track commuters with PUV type: $selectedPUVType',
-                                    );
                                     _mapKey.currentState!
                                         .startTrackingCommuters(
                                           selectedPUVType,
                                         );
                                   } else {
-                                    debugPrint(
-                                      'Stopping commuter tracking (offline)',
-                                    );
                                     _mapKey.currentState!
                                         .startTrackingCommuters(null);
                                   }
                                 }
 
                                 // Show confirmation about location visibility
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text(
-                                      _isLocationVisibleToCommuters
-                                          ? 'You are now online and visible to commuters'
-                                          : 'You are now offline and hidden from commuters',
-                                    ),
-                                    backgroundColor:
-                                        _isLocationVisibleToCommuters
-                                            ? Colors.green
-                                            : Colors.red,
-                                    duration: Duration(seconds: 2),
-                                  ),
-                                );
+                                _showStatusSnackBar();
                               },
                               activeColor: Colors.green,
                               activeTrackColor: Colors.green.withAlpha(128),
@@ -613,29 +829,42 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
                                         right: 8.0,
                                       ),
                                       child: InkWell(
-                                        onTap: () {
+                                        onTap: () async {
                                           setState(() {
                                             selectedPUVType = entry.key;
 
                                             // Clear any selected route when changing PUV type
                                             _selectedRoute = null;
-                                            if (_mapKey.currentState != null) {
-                                              _mapKey.currentState!
-                                                  .clearRoutes();
-
-                                              // Start tracking commuters with the selected PUV type
-                                              if (_isOnline &&
-                                                  _isLocationVisibleToCommuters) {
-                                                debugPrint(
-                                                  'PUV type changed, tracking commuters with: $selectedPUVType',
-                                                );
-                                                _mapKey.currentState!
-                                                    .startTrackingCommuters(
-                                                      selectedPUVType,
-                                                    );
-                                              }
-                                            }
                                           });
+
+                                          // Update the location service with the new PUV type
+                                          if (_isOnline) {
+                                            final locationService =
+                                                LocationService();
+                                            await locationService
+                                                .updateSelectedPuvType(
+                                                  selectedPUVType,
+                                                );
+                                            debugPrint(
+                                              'Updated location service with PUV type: $selectedPUVType',
+                                            );
+                                          }
+
+                                          if (_mapKey.currentState != null) {
+                                            _mapKey.currentState!.clearRoutes();
+
+                                            // Start tracking commuters with the selected PUV type
+                                            if (_isOnline &&
+                                                _isLocationVisibleToCommuters) {
+                                              debugPrint(
+                                                'PUV type changed, tracking commuters with: $selectedPUVType',
+                                              );
+                                              _mapKey.currentState!
+                                                  .startTrackingCommuters(
+                                                    selectedPUVType,
+                                                  );
+                                            }
+                                          }
                                         },
                                         child: Container(
                                           width: 75, // Reduced width
@@ -794,7 +1023,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
                           if (!_isRoutePanelMinimized)
                             SizedBox(
                               width: double.infinity,
-                              height: 90, // Adjusted height
+                              height: 100, // Increased height to fix overflow
                               child:
                                   _isLoadingRoutes
                                       ? const Center(
@@ -822,6 +1051,8 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
                                                   BorderRadius.circular(8),
                                               child: Container(
                                                 width: 140,
+                                                height:
+                                                    95, // Fixed height to prevent overflow
                                                 padding: const EdgeInsets.all(
                                                   8,
                                                 ),
@@ -902,30 +1133,35 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
                                                       '${route.startPointName} to ${route.endPointName}',
                                                       style: const TextStyle(
                                                         color: Colors.white,
-                                                        fontSize: 12,
+                                                        fontSize: 11,
                                                       ),
                                                       maxLines: 2,
                                                       overflow:
                                                           TextOverflow.ellipsis,
                                                     ),
-                                                    const Spacer(),
+                                                    const SizedBox(height: 4),
                                                     Row(
+                                                      mainAxisSize:
+                                                          MainAxisSize.min,
                                                       children: [
                                                         const Icon(
                                                           Icons.access_time,
                                                           color: Colors.white70,
-                                                          size: 12,
+                                                          size: 10,
                                                         ),
                                                         const SizedBox(
-                                                          width: 4,
+                                                          width: 2,
                                                         ),
                                                         Text(
-                                                          '~${route.estimatedTravelTime} min',
+                                                          '${route.estimatedTravelTime}m',
                                                           style: const TextStyle(
                                                             color:
                                                                 Colors.white70,
-                                                            fontSize: 12,
+                                                            fontSize: 10,
                                                           ),
+                                                          overflow:
+                                                              TextOverflow
+                                                                  .ellipsis,
                                                         ),
                                                       ],
                                                     ),
@@ -1008,6 +1244,29 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
                             ),
                           ),
                         ),
+
+                        // Ride request floating window
+                        if (_activeRideRequest != null)
+                          RideRequestFloatingWindow(
+                            request: _activeRideRequest!,
+                            onRespond: (request, status) {
+                              _respondToRideRequest(request, status);
+
+                              // If accepted, show directions to the commuter
+                              if (status == RideRequestStatus.accepted &&
+                                  _mapKey.currentState != null) {
+                                _mapKey.currentState!.showDirectionsToLocation(
+                                  request.commuterLocation,
+                                  markerTitle:
+                                      '${request.commuterName ?? 'Commuter'} (${request.distanceKm.toStringAsFixed(1)} km)',
+                                );
+                              }
+
+                              // Hide the floating window
+                              _hideRideRequestWindow();
+                            },
+                            onClose: _hideRideRequestWindow,
+                          ),
                       ],
                     ),
                   ),
@@ -1164,6 +1423,34 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
                                                   const DriverEarningsScreen(),
                                         ),
                                       );
+                                    },
+                                  ),
+                                  _buildDrawerItem(
+                                    icon: Icons.directions_car,
+                                    title: 'Ride Requests',
+                                    onTap: () {
+                                      _toggleDrawer();
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder:
+                                              (context) =>
+                                                  const DriverRideRequestsScreen(),
+                                        ),
+                                      ).then((result) {
+                                        // If a ride request is returned, show directions to the commuter
+                                        if (result != null &&
+                                            result is RideRequest) {
+                                          if (_mapKey.currentState != null) {
+                                            _mapKey.currentState!
+                                                .showDirectionsToLocation(
+                                                  result.commuterLocation,
+                                                  markerTitle:
+                                                      '${result.commuterName ?? 'Commuter'} (${result.distanceKm.toStringAsFixed(1)} km)',
+                                                );
+                                          }
+                                        }
+                                      });
                                     },
                                   ),
                                   _buildDrawerItem(

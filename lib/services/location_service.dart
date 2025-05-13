@@ -29,8 +29,46 @@ class LocationService {
     _userId = _auth.currentUser?.uid;
     _userRole = userRole;
 
+    debugPrint(
+      'Initializing LocationService with userId: $_userId, role: $_userRole',
+    );
+
     if (_userId == null) {
       throw Exception('User not authenticated');
+    }
+
+    // Verify the user role in Firestore
+    try {
+      final userDoc = await _firestore.collection('users').doc(_userId).get();
+      if (userDoc.exists && userDoc.data()?['role'] != null) {
+        final roleIndex = userDoc.data()?['role'] as int;
+        String roleFromFirestore = '';
+
+        // Convert role index to string
+        switch (roleIndex) {
+          case 0:
+            roleFromFirestore = 'commuter';
+            break;
+          case 1:
+            roleFromFirestore = 'driver';
+            break;
+          case 2:
+            roleFromFirestore = 'operator';
+            break;
+          default:
+            roleFromFirestore = 'commuter';
+        }
+
+        // If the role from Firestore doesn't match the provided role, use the one from Firestore
+        if (roleFromFirestore != userRole) {
+          debugPrint(
+            'Role mismatch: provided=$userRole, Firestore=$roleFromFirestore. Using Firestore role.',
+          );
+          _userRole = roleFromFirestore;
+        }
+      }
+    } catch (e) {
+      debugPrint('Error verifying user role: $e');
     }
 
     // Request permissions
@@ -57,6 +95,7 @@ class LocationService {
   }
 
   Future<void> startLocationTracking({bool isVisible = true}) async {
+    debugPrint('Starting location tracking with visibility: $isVisible');
     _isLocationVisible = isVisible;
 
     // Cancel any existing streams
@@ -74,6 +113,19 @@ class LocationService {
 
     // Set initial status
     await _updateOnlineStatus(true);
+
+    // Get current position and update location immediately
+    try {
+      final position = await Geolocator.getCurrentPosition();
+      await _updateLocation(position);
+      debugPrint(
+        'Initial location updated: ${position.latitude}, ${position.longitude}',
+      );
+    } catch (e) {
+      debugPrint('Error getting initial position: $e');
+    }
+
+    debugPrint('Location tracking started successfully');
   }
 
   Future<void> stopLocationTracking() async {
@@ -89,7 +141,15 @@ class LocationService {
   }
 
   Future<void> _updateLocation(Position position) async {
-    if (_userId == null) return;
+    if (_userId == null) {
+      debugPrint('Cannot update location: userId is null');
+      return;
+    }
+
+    debugPrint('Updating location for user $_userId (role: $_userRole)');
+    debugPrint(
+      'Location: ${position.latitude}, ${position.longitude}, heading: ${position.heading}',
+    );
 
     final location = GeoPoint(position.latitude, position.longitude);
     final timestamp = FieldValue.serverTimestamp();
@@ -98,6 +158,7 @@ class LocationService {
       // Determine the collection based on user role
       String collection =
           _userRole == 'driver' ? 'driver_locations' : 'commuter_locations';
+      debugPrint('Using collection: $collection');
 
       // Create base data
       Map<String, dynamic> locationData = {
@@ -117,6 +178,11 @@ class LocationService {
         locationData['puvType'] = _selectedPuvType;
         locationData['vehicleId'] = _vehicleId;
         locationData['routeId'] = _routeId;
+
+        // Add iconType based on puvType (important for map display)
+        if (_selectedPuvType != null) {
+          locationData['iconType'] = _selectedPuvType!.toLowerCase();
+        }
 
         // If we have vehicle details, add them
         if (_vehicleId != null) {
@@ -142,6 +208,11 @@ class LocationService {
               userDoc.data()?['displayName'] ?? 'Driver';
           locationData['rating'] =
               userDoc.data()?['rating'] ?? 4.5; // Default rating
+
+          // Add photo URL if available
+          if (userDoc.data()?['photoURL'] != null) {
+            locationData['photoUrl'] = userDoc.data()?['photoURL'];
+          }
         }
       } else if (_userRole == 'commuter') {
         // Add commuter-specific data
@@ -155,25 +226,86 @@ class LocationService {
         }
       }
 
+      // Log the data being sent to Firestore
+      debugPrint('Sending location data to Firestore:');
+      locationData.forEach((key, value) {
+        if (key != 'location') {
+          // Skip GeoPoint which doesn't print well
+          debugPrint('  $key: $value');
+        }
+      });
+
+      // Update the document in Firestore
       await _firestore
           .collection(collection)
           .doc(_userId)
           .set(locationData, SetOptions(merge: true));
+
+      debugPrint('Location data successfully updated in Firestore');
     } catch (e) {
       debugPrint('Error updating location: $e');
     }
   }
 
   Future<void> _updateOnlineStatus(bool isOnline) async {
-    if (_userId == null || _userRole != 'driver') return;
+    if (_userId == null || _userRole != 'driver') {
+      debugPrint(
+        'Cannot update online status: userId is null or user is not a driver',
+      );
+      return;
+    }
+
+    debugPrint('Updating online status for driver $_userId to: $isOnline');
 
     try {
-      await _firestore.collection('driver_locations').doc(_userId).set({
+      Map<String, dynamic> statusData = {
         'userId': _userId,
         'isOnline': isOnline,
         'isLocationVisible': isOnline ? _isLocationVisible : false,
         'lastUpdated': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
+      };
+
+      // Add PUV type and icon type if available
+      if (_selectedPuvType != null) {
+        statusData['puvType'] = _selectedPuvType;
+        statusData['iconType'] = _selectedPuvType!.toLowerCase();
+      }
+
+      // Add driver name from user document
+      try {
+        final userDoc = await _firestore.collection('users').doc(_userId).get();
+        if (userDoc.exists) {
+          statusData['driverName'] = userDoc.data()?['displayName'] ?? 'Driver';
+
+          // Add photo URL if available
+          if (userDoc.data()?['photoURL'] != null) {
+            statusData['photoUrl'] = userDoc.data()?['photoURL'];
+          }
+        }
+      } catch (e) {
+        debugPrint('Error fetching user data: $e');
+      }
+
+      // Log the data being sent to Firestore
+      debugPrint('Sending online status data to Firestore:');
+      statusData.forEach((key, value) {
+        debugPrint('  $key: $value');
+      });
+
+      // Update the document in Firestore
+      await _firestore
+          .collection('driver_locations')
+          .doc(_userId)
+          .set(statusData, SetOptions(merge: true));
+
+      debugPrint('Online status successfully updated in Firestore');
+
+      // If going online, force a location update to ensure all fields are updated
+      if (isOnline) {
+        debugPrint('Getting current position for location update...');
+        final position = await Geolocator.getCurrentPosition();
+        await _updateLocation(position);
+      }
     } catch (e) {
       debugPrint('Error updating online status: $e');
     }
@@ -181,6 +313,7 @@ class LocationService {
 
   // Set the selected PUV type for the user
   Future<void> updateSelectedPuvType(String? puvType) async {
+    debugPrint('Updating selected PUV type to: $puvType');
     _selectedPuvType = puvType;
 
     // Update the location data with the new PUV type
@@ -188,13 +321,42 @@ class LocationService {
       try {
         String collection =
             _userRole == 'driver' ? 'driver_locations' : 'commuter_locations';
-        await _firestore.collection(collection).doc(_userId).update({
+        debugPrint('Using collection: $collection for user $_userId');
+
+        Map<String, dynamic> updateData = {
           'selectedPuvType': puvType,
           'puvType': puvType, // For backward compatibility with existing code
+        };
+
+        // Add iconType for drivers (important for map display)
+        if (_userRole == 'driver' && puvType != null) {
+          updateData['iconType'] = puvType.toLowerCase();
+          debugPrint('Added iconType: ${puvType.toLowerCase()}');
+        }
+
+        // Log the data being sent to Firestore
+        debugPrint('Sending PUV type data to Firestore:');
+        updateData.forEach((key, value) {
+          debugPrint('  $key: $value');
         });
+
+        // Use set with merge option instead of update to handle cases where the document doesn't exist yet
+        await _firestore
+            .collection(collection)
+            .doc(_userId)
+            .set(updateData, SetOptions(merge: true));
+
+        debugPrint('PUV type successfully updated in Firestore');
+
+        // Force a location update to ensure all fields are updated
+        debugPrint('Getting current position for location update...');
+        final position = await Geolocator.getCurrentPosition();
+        await _updateLocation(position);
       } catch (e) {
         debugPrint('Error updating PUV type: $e');
       }
+    } else {
+      debugPrint('Cannot update PUV type: userId is null');
     }
   }
 
@@ -209,10 +371,11 @@ class LocationService {
     // Update the location data with the new vehicle and route info
     if (_userId != null && _userRole == 'driver') {
       try {
-        await _firestore.collection('driver_locations').doc(_userId).update({
+        // Use set with merge option instead of update to handle cases where the document doesn't exist yet
+        await _firestore.collection('driver_locations').doc(_userId).set({
           'vehicleId': vehicleId,
           'routeId': routeId,
-        });
+        }, SetOptions(merge: true));
 
         // Fetch and update vehicle details
         if (vehicleId != null) {

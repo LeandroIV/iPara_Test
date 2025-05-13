@@ -11,6 +11,9 @@ import 'package:flutter_polyline_points/flutter_polyline_points.dart';
 import '../models/driver_location_model.dart';
 import '../models/commuter_location_model.dart';
 import '../services/location_service.dart';
+import '../services/ride_request_service.dart';
+import '../services/user_service.dart';
+import '../models/user_role.dart';
 import 'dart:ui' as ui;
 import 'dart:typed_data';
 import 'package:flutter/services.dart' show rootBundle;
@@ -54,6 +57,9 @@ class HomeMapWidgetState extends State<HomeMapWidget> {
   // Location service for getting nearby drivers/commuters
   final LocationService _locationService = LocationService();
 
+  // Ride request service for requesting rides
+  final RideRequestService _rideRequestService = RideRequestService();
+
   // Selected PUV type for filtering
   String? _selectedPuvType;
 
@@ -89,12 +95,27 @@ class HomeMapWidgetState extends State<HomeMapWidget> {
   // Initialize the location service
   Future<void> _initializeLocationService() async {
     try {
-      // Initialize the location service with the appropriate role
-      await _locationService.initialize(
-        widget.onPuvTypeSelected != null ? 'driver' : 'commuter',
-      );
+      // Get the actual user role from UserService
+      final userRole = await UserService.getUserRole();
+
+      if (userRole != null) {
+        // Convert UserRole enum to string
+        String roleString = userRole.name.toLowerCase();
+        debugPrint(
+          'Initializing location service with actual user role: $roleString',
+        );
+
+        // Initialize the location service with the actual role
+        await _locationService.initialize(roleString);
+      } else {
+        // Fallback to the old method if user role is not available
+        String roleString =
+            widget.onPuvTypeSelected != null ? 'driver' : 'commuter';
+        debugPrint('User role not found, using fallback role: $roleString');
+        await _locationService.initialize(roleString);
+      }
     } catch (e) {
-      print('Error initializing location service: $e');
+      debugPrint('Error initializing location service: $e');
     }
   }
 
@@ -111,7 +132,7 @@ class HomeMapWidgetState extends State<HomeMapWidget> {
       try {
         _mapController!.dispose();
       } catch (e) {
-        print('Error disposing map controller: $e');
+        debugPrint('Error disposing map controller: $e');
       }
     }
     super.dispose();
@@ -543,6 +564,10 @@ class HomeMapWidgetState extends State<HomeMapWidget> {
                       Colors.amber,
                       () => Navigator.pop(context),
                     ),
+                    _buildActionButton('Para', Icons.pan_tool, Colors.red, () {
+                      Navigator.pop(context);
+                      _requestRide(driver);
+                    }),
                   ],
                 ),
               ],
@@ -589,12 +614,7 @@ class HomeMapWidgetState extends State<HomeMapWidget> {
         mainAxisSize: MainAxisSize.min,
         children: [
           CircleAvatar(
-            backgroundColor: Color.fromRGBO(
-              color.red,
-              color.green,
-              color.blue,
-              0.2,
-            ),
+            backgroundColor: color.withAlpha(51), // 0.2 * 255 = 51
             radius: 20,
             child: Icon(icon, color: color, size: 20),
           ),
@@ -603,6 +623,72 @@ class HomeMapWidgetState extends State<HomeMapWidget> {
         ],
       ),
     );
+  }
+
+  /// Request a ride from the driver
+  Future<void> _requestRide(DriverLocation driver) async {
+    if (!mounted) return;
+
+    try {
+      // Show loading indicator
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Requesting ride...'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+
+      // Create a ride request
+      final request = await _rideRequestService.createRideRequest(
+        driverId: driver.userId,
+        driverLocation: driver.location,
+        puvType: driver.puvType,
+        driverName: driver.driverName,
+      );
+
+      if (request == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Failed to create ride request. Please try again.'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+        return;
+      }
+
+      // Show success message
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Ride request sent to ${driver.driverName ?? 'driver'}!',
+            ),
+            backgroundColor: Colors.green,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+
+      // Show directions to the driver
+      if (_userLocation != null && mounted) {
+        showDirectionsToLocation(
+          driver.location,
+          markerTitle: '${driver.driverName ?? 'Driver'} (${driver.puvType})',
+        );
+      }
+    } catch (e) {
+      debugPrint('Error requesting ride: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error requesting ride: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   /// Get the appropriate icon for a driver based on PUV type
@@ -1199,7 +1285,7 @@ class HomeMapWidgetState extends State<HomeMapWidget> {
         _updateCameraToShowRoute(polylineCoordinates);
       }
     } catch (e) {
-      print('Error getting directions: $e');
+      debugPrint('Error getting directions: $e');
       if (mounted) {
         setState(() {
           _isLoading = false;
@@ -1234,7 +1320,7 @@ class HomeMapWidgetState extends State<HomeMapWidget> {
       // Animate camera to show all the points with padding
       _mapController?.animateCamera(CameraUpdate.newLatLngBounds(bounds, 50));
     } catch (e) {
-      print('Error updating camera position: $e');
+      debugPrint('Error updating camera position: $e');
     }
   }
 
@@ -1252,11 +1338,220 @@ class HomeMapWidgetState extends State<HomeMapWidget> {
         _markers.removeWhere(
           (marker) => marker.markerId.value == 'distance_marker',
         );
+
+        // Remove destination marker
+        _markers.removeWhere(
+          (marker) => marker.markerId.value == 'destination_marker',
+        );
       }
       if (clearPUVRoute) {
         _polylines.remove(PolylineId('puv_route'));
       }
     });
+  }
+
+  /// Show directions to a specific location (for driver to commuter navigation)
+  Future<void> showDirectionsToLocation(
+    LatLng destination, {
+    String? markerTitle,
+  }) async {
+    if (_userLocation == null) {
+      debugPrint('Cannot show directions: User location is not available');
+      return;
+    }
+
+    // Check if a route already exists
+    bool routeExists = _polylines.containsKey(PolylineId('user_route'));
+
+    // Add a marker for the destination
+    final markerId = MarkerId('destination_marker');
+    final marker = Marker(
+      markerId: markerId,
+      position: destination,
+      infoWindow: InfoWindow(
+        title: markerTitle ?? 'Destination',
+        snippet: routeExists ? 'Tap to cancel route' : null,
+      ),
+      onTap:
+          routeExists
+              ? () {
+                // Show a confirmation dialog to cancel the route
+                showDialog(
+                  context: context,
+                  builder:
+                      (context) => AlertDialog(
+                        title: const Text('Cancel Route'),
+                        content: const Text(
+                          'Do you want to cancel the current route?',
+                        ),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(context),
+                            child: const Text('No'),
+                          ),
+                          TextButton(
+                            onPressed: () {
+                              Navigator.pop(context);
+                              clearRoutes();
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Route cancelled'),
+                                  duration: Duration(seconds: 2),
+                                ),
+                              );
+                            },
+                            child: const Text('Yes'),
+                          ),
+                        ],
+                      ),
+                );
+              }
+              : null,
+    );
+
+    // If a route already exists, just update the marker
+    if (routeExists) {
+      setState(() {
+        _markers.removeWhere((m) => m.markerId == markerId);
+        _markers.add(marker);
+      });
+      return;
+    }
+
+    // Clear existing routes and markers
+    clearRoutes();
+
+    // Add the destination marker
+    setState(() {
+      _markers.removeWhere((m) => m.markerId == markerId);
+      _markers.add(marker);
+    });
+
+    // Get directions from current location to destination
+    try {
+      final polylineCoordinates = await _getDirections(
+        _userLocation!,
+        destination,
+      );
+
+      if (polylineCoordinates.isNotEmpty) {
+        // Calculate distance and ETA
+        final double distanceKm = _calculatePolylineDistance(
+          polylineCoordinates,
+        );
+        final int estimatedMinutes = _calculateEstimatedTime(distanceKm);
+
+        // Store route information
+        _currentDestinationName = markerTitle;
+        _currentRouteDistanceKm = distanceKm;
+        _estimatedTimeMinutes = estimatedMinutes;
+
+        // Add the polyline to the map
+        final polylineId = PolylineId('user_route');
+        final polyline = Polyline(
+          polylineId: polylineId,
+          color: Colors.blue,
+          width: 5,
+          points: polylineCoordinates,
+        );
+
+        // Update the map with the new polyline
+        setState(() {
+          _polylines[polylineId] = polyline;
+        });
+
+        // Find the middle point of the polyline to place the distance marker
+        if (polylineCoordinates.length > 1) {
+          // Get the middle point index
+          int middleIndex = polylineCoordinates.length ~/ 2;
+          LatLng middlePoint = polylineCoordinates[middleIndex];
+
+          // Create a custom marker for distance and ETA
+          final distanceMarkerId = MarkerId('distance_marker');
+
+          // Format the distance text
+          final String distanceText =
+              distanceKm < 1
+                  ? '${(distanceKm * 1000).toStringAsFixed(0)} m'
+                  : '${distanceKm.toStringAsFixed(1)} km';
+
+          // Create a bitmap descriptor for the custom marker
+          final BitmapDescriptor markerIcon = await _createDistanceMarkerBitmap(
+            distanceText,
+            '$estimatedMinutes min',
+          );
+
+          // Add the marker to the map
+          final distanceMarker = Marker(
+            markerId: distanceMarkerId,
+            position: middlePoint,
+            icon: markerIcon,
+            anchor: Offset(0.5, 0.5), // Center the marker on the point
+            zIndex: 3, // Higher z-index to appear above other markers
+          );
+
+          // Remove any existing distance marker
+          _markers.removeWhere(
+            (marker) => marker.markerId.value == 'distance_marker',
+          );
+
+          // Add the new distance marker
+          _markers.add(distanceMarker);
+        }
+
+        // Zoom to show the entire route
+        _updateCameraToShowRoute(polylineCoordinates);
+
+        // Update the destination marker to include the cancel option
+        setState(() {
+          _markers.removeWhere((m) => m.markerId == markerId);
+          _markers.add(
+            Marker(
+              markerId: markerId,
+              position: destination,
+              infoWindow: InfoWindow(
+                title: markerTitle ?? 'Destination',
+                snippet: 'Tap to cancel route',
+              ),
+              onTap: () {
+                // Show a confirmation dialog to cancel the route
+                showDialog(
+                  context: context,
+                  builder:
+                      (context) => AlertDialog(
+                        title: const Text('Cancel Route'),
+                        content: const Text(
+                          'Do you want to cancel the current route?',
+                        ),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(context),
+                            child: const Text('No'),
+                          ),
+                          TextButton(
+                            onPressed: () {
+                              Navigator.pop(context);
+                              clearRoutes();
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Route cancelled'),
+                                  duration: Duration(seconds: 2),
+                                ),
+                              );
+                            },
+                            child: const Text('Yes'),
+                          ),
+                        ],
+                      ),
+                );
+              },
+            ),
+          );
+        });
+      }
+    } catch (e) {
+      debugPrint('Error getting directions: $e');
+    }
   }
 
   // Expose search functionality to be called from parent widget
@@ -1317,12 +1612,12 @@ class HomeMapWidgetState extends State<HomeMapWidget> {
               setState(() => _searchResults = formattedResults);
             }
 
-            print('Formatted search results: $formattedResults');
+            debugPrint('Formatted search results: $formattedResults');
             return formattedResults;
           }
         }
       } catch (e) {
-        print(
+        debugPrint(
           'Error with Places API v1: $e, falling back to Places Autocomplete API',
         );
       }
@@ -1346,17 +1641,17 @@ class HomeMapWidgetState extends State<HomeMapWidget> {
             setState(() => _searchResults = predictions);
           }
 
-          print('Autocomplete search results: $predictions');
+          debugPrint('Autocomplete search results: $predictions');
           return predictions;
         }
       }
 
-      print(
+      debugPrint(
         'All search APIs failed. HTTP error: ${autocompleteResponse.statusCode}',
       );
       return [];
     } catch (e) {
-      print('Error searching places: $e');
+      debugPrint('Error searching places: $e');
       return [];
     }
   }
@@ -1388,7 +1683,7 @@ class HomeMapWidgetState extends State<HomeMapWidget> {
           return _handlePlaceLocation(lat, lng, name);
         }
       } catch (e) {
-        print(
+        debugPrint(
           'Error with Places API v1 details: $e, falling back to Places Details API',
         );
       }
@@ -1418,12 +1713,12 @@ class HomeMapWidgetState extends State<HomeMapWidget> {
         }
       }
 
-      print(
+      debugPrint(
         'All place details APIs failed. HTTP error: ${detailsResponse.statusCode}',
       );
       return false;
     } catch (e) {
-      print('Error getting place details: $e');
+      debugPrint('Error getting place details: $e');
       return false;
     }
   }
@@ -1432,21 +1727,74 @@ class HomeMapWidgetState extends State<HomeMapWidget> {
   Future<bool> _handlePlaceLocation(double lat, double lng, String name) async {
     if (!mounted || _mapController == null) return false;
 
+    final destinationLocation = LatLng(lat, lng);
+
+    // Check if a route already exists
+    bool routeExists = _polylines.containsKey(PolylineId('user_route'));
+
     // Only remove the destination marker, not all markers
     _markers.removeWhere(
       (marker) => marker.markerId.value == 'selected_location',
     );
 
-    // Add the destination marker
-    final destinationLocation = LatLng(lat, lng);
-    _markers.add(
-      Marker(
-        markerId: const MarkerId('selected_location'),
-        position: destinationLocation,
-        infoWindow: InfoWindow(title: name),
-        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen),
-      ),
-    );
+    // Add the destination marker with appropriate info window
+    if (routeExists) {
+      // If route exists, add a marker with a cancel option in the info window
+      _markers.add(
+        Marker(
+          markerId: const MarkerId('selected_location'),
+          position: destinationLocation,
+          infoWindow: InfoWindow(title: name, snippet: 'Tap to cancel route'),
+          icon: BitmapDescriptor.defaultMarkerWithHue(
+            BitmapDescriptor.hueGreen,
+          ),
+          onTap: () {
+            // Show a confirmation dialog to cancel the route
+            showDialog(
+              context: context,
+              builder:
+                  (context) => AlertDialog(
+                    title: const Text('Cancel Route'),
+                    content: const Text(
+                      'Do you want to cancel the current route?',
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context),
+                        child: const Text('No'),
+                      ),
+                      TextButton(
+                        onPressed: () {
+                          Navigator.pop(context);
+                          clearRoutes();
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Route cancelled'),
+                              duration: Duration(seconds: 2),
+                            ),
+                          );
+                        },
+                        child: const Text('Yes'),
+                      ),
+                    ],
+                  ),
+            );
+          },
+        ),
+      );
+    } else {
+      // If no route exists, add a normal marker
+      _markers.add(
+        Marker(
+          markerId: const MarkerId('selected_location'),
+          position: destinationLocation,
+          infoWindow: InfoWindow(title: name),
+          icon: BitmapDescriptor.defaultMarkerWithHue(
+            BitmapDescriptor.hueGreen,
+          ),
+        ),
+      );
+    }
 
     if (mounted && _mapController != null) {
       await _mapController?.animateCamera(
@@ -1456,7 +1804,7 @@ class HomeMapWidgetState extends State<HomeMapWidget> {
       );
 
       // Show route from user location to destination if user location is available and visible
-      if (_userLocation != null && widget.showUserLocation) {
+      if (_userLocation != null && widget.showUserLocation && !routeExists) {
         await showRoute(_userLocation!, destinationLocation, routeName: name);
       }
     }
@@ -1689,6 +2037,9 @@ class HomeMapWidgetState extends State<HomeMapWidget> {
     if (_mapController == null) return;
 
     try {
+      // Check if a route already exists
+      bool routeExists = _polylines.containsKey(PolylineId('user_route'));
+
       // Remove only the selected location marker, not all markers
       _markers.removeWhere(
         (marker) => marker.markerId.value == 'selected_location',
@@ -1696,16 +2047,66 @@ class HomeMapWidgetState extends State<HomeMapWidget> {
 
       // Add marker for the selected location if name is provided
       if (placeName != null) {
-        _markers.add(
-          Marker(
-            markerId: const MarkerId('selected_location'),
-            position: location,
-            infoWindow: InfoWindow(title: placeName),
-            icon: BitmapDescriptor.defaultMarkerWithHue(
-              BitmapDescriptor.hueGreen,
+        if (routeExists) {
+          // If route exists, add a marker with a cancel option in the info window
+          _markers.add(
+            Marker(
+              markerId: const MarkerId('selected_location'),
+              position: location,
+              infoWindow: InfoWindow(
+                title: placeName,
+                snippet: 'Tap to cancel route',
+              ),
+              icon: BitmapDescriptor.defaultMarkerWithHue(
+                BitmapDescriptor.hueGreen,
+              ),
+              onTap: () {
+                // Show a confirmation dialog to cancel the route
+                showDialog(
+                  context: context,
+                  builder:
+                      (context) => AlertDialog(
+                        title: const Text('Cancel Route'),
+                        content: const Text(
+                          'Do you want to cancel the current route?',
+                        ),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(context),
+                            child: const Text('No'),
+                          ),
+                          TextButton(
+                            onPressed: () {
+                              Navigator.pop(context);
+                              clearRoutes();
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Route cancelled'),
+                                  duration: Duration(seconds: 2),
+                                ),
+                              );
+                            },
+                            child: const Text('Yes'),
+                          ),
+                        ],
+                      ),
+                );
+              },
             ),
-          ),
-        );
+          );
+        } else {
+          // If no route exists, add a normal marker
+          _markers.add(
+            Marker(
+              markerId: const MarkerId('selected_location'),
+              position: location,
+              infoWindow: InfoWindow(title: placeName),
+              icon: BitmapDescriptor.defaultMarkerWithHue(
+                BitmapDescriptor.hueGreen,
+              ),
+            ),
+          );
+        }
       }
 
       // Move camera to the location
@@ -1718,7 +2119,8 @@ class HomeMapWidgetState extends State<HomeMapWidget> {
       // Show directions if user location is available and visible
       if (_userLocation != null &&
           placeName != null &&
-          widget.showUserLocation) {
+          widget.showUserLocation &&
+          !routeExists) {
         await showRoute(_userLocation!, location, routeName: placeName);
       }
 
