@@ -52,7 +52,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           });
         }
       } catch (e) {
-        print('Error loading user data: $e');
+        debugPrint('Error loading user data: $e');
       }
     }
   }
@@ -247,9 +247,13 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   style: const TextStyle(color: Colors.white),
                   decoration: InputDecoration(
                     hintText: 'Enter your name',
-                    hintStyle: TextStyle(color: Colors.white.withOpacity(0.5)),
+                    hintStyle: TextStyle(
+                      color: Colors.white.withAlpha(128),
+                    ), // 0.5 * 255 = 127.5 ≈ 128
                     filled: true,
-                    fillColor: Colors.white.withOpacity(0.1),
+                    fillColor: Colors.white.withAlpha(
+                      26,
+                    ), // 0.1 * 255 = 25.5 ≈ 26
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
                       borderSide: BorderSide.none,
@@ -277,9 +281,13 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   enabled: false,
                   decoration: InputDecoration(
                     hintText: 'Your email',
-                    hintStyle: TextStyle(color: Colors.white.withOpacity(0.5)),
+                    hintStyle: TextStyle(
+                      color: Colors.white.withAlpha(128),
+                    ), // 0.5 * 255 = 127.5 ≈ 128
                     filled: true,
-                    fillColor: Colors.white.withOpacity(0.05),
+                    fillColor: Colors.white.withAlpha(
+                      13,
+                    ), // 0.05 * 255 = 12.75 ≈ 13
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
                       borderSide: BorderSide.none,
@@ -301,9 +309,13 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   keyboardType: TextInputType.phone,
                   decoration: InputDecoration(
                     hintText: 'Enter your phone number',
-                    hintStyle: TextStyle(color: Colors.white.withOpacity(0.5)),
+                    hintStyle: TextStyle(
+                      color: Colors.white.withAlpha(128),
+                    ), // 0.5 * 255 = 127.5 ≈ 128
                     filled: true,
-                    fillColor: Colors.white.withOpacity(0.1),
+                    fillColor: Colors.white.withAlpha(
+                      26,
+                    ), // 0.1 * 255 = 25.5 ≈ 26
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
                       borderSide: BorderSide.none,
@@ -316,7 +328,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 // Change Password Section
                 Container(
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.1),
+                    color: Colors.white.withAlpha(26), // 0.1 * 255 = 25.5 ≈ 26
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Material(
@@ -366,7 +378,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                       labelText: 'Current Password',
                       labelStyle: const TextStyle(color: Colors.white70),
                       filled: true,
-                      fillColor: Colors.white.withOpacity(0.1),
+                      fillColor: Colors.white.withAlpha(
+                        26,
+                      ), // 0.1 * 255 = 25.5 ≈ 26
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
                         borderSide: BorderSide.none,
@@ -396,7 +410,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                       labelText: 'New Password',
                       labelStyle: const TextStyle(color: Colors.white70),
                       filled: true,
-                      fillColor: Colors.white.withOpacity(0.1),
+                      fillColor: Colors.white.withAlpha(
+                        26,
+                      ), // 0.1 * 255 = 25.5 ≈ 26
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
                         borderSide: BorderSide.none,
@@ -416,7 +432,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                       labelText: 'Confirm New Password',
                       labelStyle: const TextStyle(color: Colors.white70),
                       filled: true,
-                      fillColor: Colors.white.withOpacity(0.1),
+                      fillColor: Colors.white.withAlpha(
+                        26,
+                      ), // 0.1 * 255 = 25.5 ≈ 26
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
                         borderSide: BorderSide.none,

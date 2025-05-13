@@ -62,8 +62,11 @@ dependencies:
   timezone: ^0.8.0
   intl: ^0.20.2
 
-  # URL launcher for emergency calls - temporarily disabled
-  # url_launcher: 6.2.5
+  # URL launcher for emergency calls and help & support
+  url_launcher: ^6.2.5
+
+  # Charts for analytics and finance screens
+  fl_chart: ^0.66.0
 
 dev_dependencies:
   flutter_test:

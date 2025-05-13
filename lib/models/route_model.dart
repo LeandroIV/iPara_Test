@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart' show Color;
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
@@ -64,13 +65,13 @@ class PUVRoute {
     final data = doc.data() as Map<String, dynamic>;
 
     // Debug output
-    print(
+    debugPrint(
       'Processing document ${doc.id} with data keys: ${data.keys.join(', ')}',
     );
 
     // Convert the GeoPoint list to LatLng list
     final List<dynamic> waypointData = data['waypoints'] ?? [];
-    print(
+    debugPrint(
       'Waypoints data type: ${waypointData.runtimeType}, count: ${waypointData.length}',
     );
 
@@ -81,7 +82,7 @@ class PUVRoute {
           } else if (point is Map<String, dynamic>) {
             return LatLng(point['latitude'], point['longitude']);
           } else {
-            print('Unknown waypoint type: ${point.runtimeType}');
+            debugPrint('Unknown waypoint type: ${point.runtimeType}');
             // Default fallback
             return const LatLng(0, 0);
           }

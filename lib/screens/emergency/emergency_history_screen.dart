@@ -32,9 +32,11 @@ class _EmergencyHistoryScreenState extends State<EmergencyHistoryScreen> {
         _alerts = alerts;
       });
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error loading emergency alerts: $e')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error loading emergency alerts: $e')),
+        );
+      }
     } finally {
       setState(() {
         _isLoading = false;
@@ -42,36 +44,48 @@ class _EmergencyHistoryScreenState extends State<EmergencyHistoryScreen> {
     }
   }
 
-  Future<void> _updateAlertStatus(EmergencyAlert alert, EmergencyAlertStatus newStatus) async {
+  Future<void> _updateAlertStatus(
+    EmergencyAlert alert,
+    EmergencyAlertStatus newStatus,
+  ) async {
     setState(() {
       _isLoading = true;
     });
 
     try {
-      final success = await _emergencyService.updateAlertStatus(alert.id, newStatus);
-      
+      final success = await _emergencyService.updateAlertStatus(
+        alert.id,
+        newStatus,
+      );
+
       if (success) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Alert marked as ${newStatus.name}'),
-            backgroundColor: Colors.green,
-          ),
-        );
-        
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Alert marked as ${newStatus.name}'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+
         // Reload alerts
         await _loadAlerts();
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Failed to update alert status'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Failed to update alert status'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error updating alert status: $e')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error updating alert status: $e')),
+        );
+      }
     } finally {
       setState(() {
         _isLoading = false;
@@ -82,51 +96,54 @@ class _EmergencyHistoryScreenState extends State<EmergencyHistoryScreen> {
   void _showAlertDetails(EmergencyAlert alert) {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Emergency Alert Details'),
-        content: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _buildDetailRow('Status', alert.status.name),
-              _buildDetailRow(
-                'Time',
-                DateFormat('MMM d, yyyy h:mm a').format(alert.timestamp.toLocal()),
+      builder:
+          (context) => AlertDialog(
+            title: const Text('Emergency Alert Details'),
+            content: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _buildDetailRow('Status', alert.status.name),
+                  _buildDetailRow(
+                    'Time',
+                    DateFormat(
+                      'MMM d, yyyy h:mm a',
+                    ).format(alert.timestamp.toLocal()),
+                  ),
+                  _buildDetailRow(
+                    'Location',
+                    '${alert.latitude.toStringAsFixed(6)}, ${alert.longitude.toStringAsFixed(6)}',
+                  ),
+                  if (alert.notes != null && alert.notes!.isNotEmpty)
+                    _buildDetailRow('Notes', alert.notes!),
+                  if (alert.notifiedContacts.isNotEmpty)
+                    _buildDetailRow(
+                      'Notified Contacts',
+                      '${alert.notifiedContacts.length} contacts',
+                    ),
+                ],
               ),
-              _buildDetailRow(
-                'Location',
-                '${alert.latitude.toStringAsFixed(6)}, ${alert.longitude.toStringAsFixed(6)}',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Close'),
               ),
-              if (alert.notes != null && alert.notes!.isNotEmpty)
-                _buildDetailRow('Notes', alert.notes!),
-              if (alert.notifiedContacts.isNotEmpty)
-                _buildDetailRow(
-                  'Notified Contacts',
-                  '${alert.notifiedContacts.length} contacts',
+              if (alert.status == EmergencyAlertStatus.active)
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.green,
+                    foregroundColor: Colors.white,
+                  ),
+                  onPressed: () {
+                    Navigator.pop(context);
+                    _updateAlertStatus(alert, EmergencyAlertStatus.resolved);
+                  },
+                  child: const Text('Mark as Resolved'),
                 ),
             ],
           ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Close'),
-          ),
-          if (alert.status == EmergencyAlertStatus.active)
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.green,
-                foregroundColor: Colors.white,
-              ),
-              onPressed: () {
-                Navigator.pop(context);
-                _updateAlertStatus(alert, EmergencyAlertStatus.resolved);
-              },
-              child: const Text('Mark as Resolved'),
-            ),
-        ],
-      ),
     );
   }
 
@@ -144,10 +161,7 @@ class _EmergencyHistoryScreenState extends State<EmergencyHistoryScreen> {
             ),
           ),
           const SizedBox(height: 4),
-          Text(
-            value,
-            style: const TextStyle(fontSize: 16),
-          ),
+          Text(value, style: const TextStyle(fontSize: 16)),
         ],
       ),
     );
@@ -161,9 +175,10 @@ class _EmergencyHistoryScreenState extends State<EmergencyHistoryScreen> {
         backgroundColor: Colors.black,
         foregroundColor: Colors.red,
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : _alerts.isEmpty
+      body:
+          _isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : _alerts.isEmpty
               ? _buildEmptyState()
               : _buildAlertsList(),
     );
@@ -174,11 +189,7 @@ class _EmergencyHistoryScreenState extends State<EmergencyHistoryScreen> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Icon(
-            Icons.history,
-            size: 80,
-            color: Colors.grey,
-          ),
+          const Icon(Icons.history, size: 80, color: Colors.grey),
           const SizedBox(height: 16),
           const Text(
             'No Emergency Alerts',
@@ -205,7 +216,9 @@ class _EmergencyHistoryScreenState extends State<EmergencyHistoryScreen> {
           margin: const EdgeInsets.only(bottom: 16),
           child: ListTile(
             leading: CircleAvatar(
-              backgroundColor: _getStatusColor(alert.status).withOpacity(0.2),
+              backgroundColor: _getStatusColor(
+                alert.status,
+              ).withAlpha(51), // 0.2 * 255 = 51
               child: Icon(
                 _getStatusIcon(alert.status),
                 color: _getStatusColor(alert.status),
@@ -219,13 +232,20 @@ class _EmergencyHistoryScreenState extends State<EmergencyHistoryScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  DateFormat('MMM d, yyyy h:mm a').format(alert.timestamp.toLocal()),
+                  DateFormat(
+                    'MMM d, yyyy h:mm a',
+                  ).format(alert.timestamp.toLocal()),
                 ),
                 const SizedBox(height: 4),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 2,
+                  ),
                   decoration: BoxDecoration(
-                    color: _getStatusColor(alert.status).withOpacity(0.1),
+                    color: _getStatusColor(
+                      alert.status,
+                    ).withAlpha(26), // 0.1 * 255 = 25.5 ≈ 26
                     borderRadius: BorderRadius.circular(4),
                   ),
                   child: Text(

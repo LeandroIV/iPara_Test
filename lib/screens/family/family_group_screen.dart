@@ -50,9 +50,11 @@ class _FamilyGroupScreenState extends State<FamilyGroupScreen> {
         });
       }
     } catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Error loading family group: $e')));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error loading family group: $e')),
+        );
+      }
     } finally {
       setState(() {
         _isLoading = false;
@@ -113,24 +115,30 @@ class _FamilyGroupScreenState extends State<FamilyGroupScreen> {
           _familyGroup = group;
         });
         await _loadFamilyGroup();
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Family group created successfully!'),
-            backgroundColor: Colors.green,
-          ),
-        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Family group created successfully!'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Failed to create family group'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Failed to create family group'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error creating family group: $e')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error creating family group: $e')),
+        );
+      }
     } finally {
       setState(() {
         _isLoading = false;
@@ -193,26 +201,32 @@ class _FamilyGroupScreenState extends State<FamilyGroupScreen> {
 
       if (success) {
         await _loadFamilyGroup();
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Successfully joined family group!'),
-            backgroundColor: Colors.green,
-          ),
-        );
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Failed to join family group. The code may be invalid or the group may be full.',
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Successfully joined family group!'),
+              backgroundColor: Colors.green,
             ),
-            backgroundColor: Colors.red,
-          ),
-        );
+          );
+        }
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Failed to join family group. The code may be invalid or the group may be full.',
+              ),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
       }
     } catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Error joining family group: $e')));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error joining family group: $e')),
+        );
+      }
     } finally {
       setState(() {
         _isLoading = false;
@@ -261,24 +275,30 @@ class _FamilyGroupScreenState extends State<FamilyGroupScreen> {
           _familyGroup = null;
           _members = [];
         });
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('You have left the family group'),
-            backgroundColor: Colors.green,
-          ),
-        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('You have left the family group'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Failed to leave family group'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Failed to leave family group'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
       }
     } catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Error leaving family group: $e')));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error leaving family group: $e')),
+        );
+      }
     } finally {
       setState(() {
         _isLoading = false;
@@ -373,12 +393,7 @@ class _FamilyGroupScreenState extends State<FamilyGroupScreen> {
   }
 
   Widget _buildGroupContent() {
-    final isHost =
-        _familyGroup!.hostId ==
-        _members.firstWhere(
-          (m) => m['isHost'],
-          orElse: () => {'userId': ''},
-        )['userId'];
+    // Removed unused isHost variable
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),

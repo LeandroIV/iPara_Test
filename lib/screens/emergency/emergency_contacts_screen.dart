@@ -6,14 +6,15 @@ class EmergencyContactsScreen extends StatefulWidget {
   const EmergencyContactsScreen({super.key});
 
   @override
-  State<EmergencyContactsScreen> createState() => _EmergencyContactsScreenState();
+  State<EmergencyContactsScreen> createState() =>
+      _EmergencyContactsScreenState();
 }
 
 class _EmergencyContactsScreenState extends State<EmergencyContactsScreen> {
   final EmergencyService _emergencyService = EmergencyService();
   bool _isLoading = true;
   List<EmergencyContact> _contacts = [];
-  
+
   // Controllers for the form
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
@@ -48,9 +49,11 @@ class _EmergencyContactsScreenState extends State<EmergencyContactsScreen> {
         _contacts = contacts;
       });
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error loading emergency contacts: $e')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error loading emergency contacts: $e')),
+        );
+      }
     } finally {
       setState(() {
         _isLoading = false;
@@ -77,112 +80,116 @@ class _EmergencyContactsScreenState extends State<EmergencyContactsScreen> {
 
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text(contact == null ? 'Add Emergency Contact' : 'Edit Contact'),
-        content: SingleChildScrollView(
-          child: Form(
-            key: _formKey,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextFormField(
-                  controller: _nameController,
-                  decoration: const InputDecoration(
-                    labelText: 'Name',
-                    hintText: 'Enter contact name',
-                  ),
-                  validator: (value) {
-                    if (value == null || value.trim().isEmpty) {
-                      return 'Please enter a name';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 16),
-                TextFormField(
-                  controller: _phoneController,
-                  decoration: const InputDecoration(
-                    labelText: 'Phone Number',
-                    hintText: 'Enter phone number',
-                  ),
-                  keyboardType: TextInputType.phone,
-                  validator: (value) {
-                    if (value == null || value.trim().isEmpty) {
-                      return 'Please enter a phone number';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 16),
-                TextFormField(
-                  controller: _relationshipController,
-                  decoration: const InputDecoration(
-                    labelText: 'Relationship',
-                    hintText: 'E.g., Family, Friend, etc.',
-                  ),
-                  validator: (value) {
-                    if (value == null || value.trim().isEmpty) {
-                      return 'Please enter a relationship';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 16),
-                DropdownButtonFormField<int>(
-                  value: _priority,
-                  decoration: const InputDecoration(
-                    labelText: 'Priority',
-                  ),
-                  items: [1, 2, 3, 4, 5].map((priority) {
-                    return DropdownMenuItem<int>(
-                      value: priority,
-                      child: Text('Priority $priority'),
-                    );
-                  }).toList(),
-                  onChanged: (value) {
-                    if (value != null) {
-                      setState(() {
-                        _priority = value;
-                      });
-                    }
-                  },
-                ),
-                const SizedBox(height: 16),
-                SwitchListTile(
-                  title: const Text('Notify in Emergency'),
-                  subtitle: const Text('Contact will be notified during emergencies'),
-                  value: _notifyInEmergency,
-                  onChanged: (value) {
-                    setState(() {
-                      _notifyInEmergency = value;
-                    });
-                  },
-                  contentPadding: EdgeInsets.zero,
-                ),
-              ],
+      builder:
+          (context) => AlertDialog(
+            title: Text(
+              contact == null ? 'Add Emergency Contact' : 'Edit Contact',
             ),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              if (_formKey.currentState?.validate() ?? false) {
-                Navigator.pop(context);
-                _saveContact();
-              }
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
-              foregroundColor: Colors.white,
+            content: SingleChildScrollView(
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextFormField(
+                      controller: _nameController,
+                      decoration: const InputDecoration(
+                        labelText: 'Name',
+                        hintText: 'Enter contact name',
+                      ),
+                      validator: (value) {
+                        if (value == null || value.trim().isEmpty) {
+                          return 'Please enter a name';
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: _phoneController,
+                      decoration: const InputDecoration(
+                        labelText: 'Phone Number',
+                        hintText: 'Enter phone number',
+                      ),
+                      keyboardType: TextInputType.phone,
+                      validator: (value) {
+                        if (value == null || value.trim().isEmpty) {
+                          return 'Please enter a phone number';
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: _relationshipController,
+                      decoration: const InputDecoration(
+                        labelText: 'Relationship',
+                        hintText: 'E.g., Family, Friend, etc.',
+                      ),
+                      validator: (value) {
+                        if (value == null || value.trim().isEmpty) {
+                          return 'Please enter a relationship';
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    DropdownButtonFormField<int>(
+                      value: _priority,
+                      decoration: const InputDecoration(labelText: 'Priority'),
+                      items:
+                          [1, 2, 3, 4, 5].map((priority) {
+                            return DropdownMenuItem<int>(
+                              value: priority,
+                              child: Text('Priority $priority'),
+                            );
+                          }).toList(),
+                      onChanged: (value) {
+                        if (value != null) {
+                          setState(() {
+                            _priority = value;
+                          });
+                        }
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    SwitchListTile(
+                      title: const Text('Notify in Emergency'),
+                      subtitle: const Text(
+                        'Contact will be notified during emergencies',
+                      ),
+                      value: _notifyInEmergency,
+                      onChanged: (value) {
+                        setState(() {
+                          _notifyInEmergency = value;
+                        });
+                      },
+                      contentPadding: EdgeInsets.zero,
+                    ),
+                  ],
+                ),
+              ),
             ),
-            child: Text(contact == null ? 'Add' : 'Save'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  if (_formKey.currentState?.validate() ?? false) {
+                    Navigator.pop(context);
+                    _saveContact();
+                  }
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.red,
+                  foregroundColor: Colors.white,
+                ),
+                child: Text(contact == null ? 'Add' : 'Save'),
+              ),
+            ],
           ),
-        ],
-      ),
     );
   }
 
@@ -202,23 +209,27 @@ class _EmergencyContactsScreenState extends State<EmergencyContactsScreen> {
           notifyInEmergency: _notifyInEmergency,
           priority: _priority,
         );
-        
-        final contactId = await _emergencyService.addEmergencyContact(newContact);
-        
-        if (contactId != null) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Contact added successfully'),
-              backgroundColor: Colors.green,
-            ),
-          );
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Failed to add contact'),
-              backgroundColor: Colors.red,
-            ),
-          );
+
+        final contactId = await _emergencyService.addEmergencyContact(
+          newContact,
+        );
+
+        if (mounted) {
+          if (contactId != null) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Contact added successfully'),
+                backgroundColor: Colors.green,
+              ),
+            );
+          } else {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Failed to add contact'),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
         }
       } else {
         // Updating an existing contact
@@ -229,32 +240,38 @@ class _EmergencyContactsScreenState extends State<EmergencyContactsScreen> {
           notifyInEmergency: _notifyInEmergency,
           priority: _priority,
         );
-        
-        final success = await _emergencyService.updateEmergencyContact(updatedContact);
-        
-        if (success) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Contact updated successfully'),
-              backgroundColor: Colors.green,
-            ),
-          );
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Failed to update contact'),
-              backgroundColor: Colors.red,
-            ),
-          );
+
+        final success = await _emergencyService.updateEmergencyContact(
+          updatedContact,
+        );
+
+        if (mounted) {
+          if (success) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Contact updated successfully'),
+                backgroundColor: Colors.green,
+              ),
+            );
+          } else {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Failed to update contact'),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
         }
       }
-      
+
       // Reload contacts
       await _loadContacts();
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error saving contact: $e')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error saving contact: $e')));
+      }
     } finally {
       setState(() {
         _isLoading = false;
@@ -265,24 +282,25 @@ class _EmergencyContactsScreenState extends State<EmergencyContactsScreen> {
   Future<void> _deleteContact(EmergencyContact contact) async {
     final confirm = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Delete Contact'),
-        content: Text('Are you sure you want to delete ${contact.name}?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
+      builder:
+          (context) => AlertDialog(
+            title: const Text('Delete Contact'),
+            content: Text('Are you sure you want to delete ${contact.name}?'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.red,
+                  foregroundColor: Colors.white,
+                ),
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('Delete'),
+              ),
+            ],
           ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
-              foregroundColor: Colors.white,
-            ),
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
     );
 
     if (confirm != true) return;
@@ -292,30 +310,38 @@ class _EmergencyContactsScreenState extends State<EmergencyContactsScreen> {
     });
 
     try {
-      final success = await _emergencyService.deleteEmergencyContact(contact.id);
-      
+      final success = await _emergencyService.deleteEmergencyContact(
+        contact.id,
+      );
+
       if (success) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Contact deleted successfully'),
-            backgroundColor: Colors.green,
-          ),
-        );
-        
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Contact deleted successfully'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+
         // Reload contacts
         await _loadContacts();
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Failed to delete contact'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Failed to delete contact'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error deleting contact: $e')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error deleting contact: $e')));
+      }
     } finally {
       setState(() {
         _isLoading = false;
@@ -331,9 +357,10 @@ class _EmergencyContactsScreenState extends State<EmergencyContactsScreen> {
         backgroundColor: Colors.black,
         foregroundColor: Colors.red,
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : _contacts.isEmpty
+      body:
+          _isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : _contacts.isEmpty
               ? _buildEmptyState()
               : _buildContactsList(),
       floatingActionButton: FloatingActionButton(
@@ -350,11 +377,7 @@ class _EmergencyContactsScreenState extends State<EmergencyContactsScreen> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Icon(
-            Icons.contact_phone,
-            size: 80,
-            color: Colors.grey,
-          ),
+          const Icon(Icons.contact_phone, size: 80, color: Colors.grey),
           const SizedBox(height: 16),
           const Text(
             'No Emergency Contacts',

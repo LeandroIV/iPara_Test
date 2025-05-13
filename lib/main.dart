@@ -29,43 +29,43 @@ final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  print('App starting...');
+  debugPrint('App starting...');
 
   try {
     // Initialize Firebase with timeout
-    print('Initializing Firebase...');
+    debugPrint('Initializing Firebase...');
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
     ).timeout(
       Duration(seconds: 10),
       onTimeout: () {
-        print('Firebase initialization timed out');
+        debugPrint('Firebase initialization timed out');
         throw TimeoutException('Firebase initialization timed out');
       },
     );
-    print('Firebase initialized successfully');
+    debugPrint('Firebase initialized successfully');
   } catch (e) {
-    print('Firebase initialization error: $e');
+    debugPrint('Firebase initialization error: $e');
     // Continue anyway to show the app
   }
 
   try {
     // Initialize notification service with timeout
-    print('Initializing notification service...');
+    debugPrint('Initializing notification service...');
     await NotificationService().initialize().timeout(
       Duration(seconds: 5),
       onTimeout: () {
-        print('Notification service initialization timed out');
+        debugPrint('Notification service initialization timed out');
         throw TimeoutException('Notification service initialization timed out');
       },
     );
-    print('Notification service initialized successfully');
+    debugPrint('Notification service initialized successfully');
   } catch (e) {
-    print('Notification service initialization error: $e');
+    debugPrint('Notification service initialization error: $e');
     // Continue anyway to show the app
   }
 
-  print('Starting app...');
+  debugPrint('Starting app...');
   runApp(const MyApp());
 }
 
@@ -211,7 +211,7 @@ class LoginScreen extends StatelessWidget {
                             borderSide: const BorderSide(color: Colors.red),
                           ),
                           filled: true,
-                          fillColor: Colors.white.withOpacity(0.1),
+                          fillColor: Colors.white.withAlpha(25),
                         ),
                         validator: (value) {
                           if (value == null || value.isEmpty) {
@@ -246,7 +246,7 @@ class LoginScreen extends StatelessWidget {
                             borderSide: const BorderSide(color: Colors.red),
                           ),
                           filled: true,
-                          fillColor: Colors.white.withOpacity(0.1),
+                          fillColor: Colors.white.withAlpha(25),
                         ),
                         validator: (value) {
                           if (value == null || value.isEmpty) {
@@ -309,35 +309,45 @@ class LoginScreen extends StatelessWidget {
                                       route = '/role-selection';
                                   }
 
-                                  Navigator.pushReplacementNamed(
-                                    context,
-                                    route,
-                                  );
+                                  // Store context in a local variable to check if it's still valid
+                                  final currentContext = context;
+                                  if (currentContext.mounted) {
+                                    Navigator.pushReplacementNamed(
+                                      currentContext,
+                                      route,
+                                    );
+                                  }
                                 } else {
                                   // If no role exists, navigate to role selection
-                                  Navigator.pushReplacementNamed(
-                                    context,
-                                    '/role-selection',
-                                  );
+                                  final currentContext = context;
+                                  if (currentContext.mounted) {
+                                    Navigator.pushReplacementNamed(
+                                      currentContext,
+                                      '/role-selection',
+                                    );
+                                  }
                                 }
                               } catch (e) {
-                                showDialog(
-                                  context: context,
-                                  builder:
-                                      (context) => AlertDialog(
-                                        title: const Text('Error'),
-                                        content: Text(
-                                          'Invalid email or password',
-                                        ),
-                                        actions: [
-                                          TextButton(
-                                            onPressed:
-                                                () => Navigator.pop(context),
-                                            child: const Text('OK'),
+                                final currentContext = context;
+                                if (currentContext.mounted) {
+                                  showDialog(
+                                    context: currentContext,
+                                    builder:
+                                        (context) => AlertDialog(
+                                          title: const Text('Error'),
+                                          content: Text(
+                                            'Invalid email or password',
                                           ),
-                                        ],
-                                      ),
-                                );
+                                          actions: [
+                                            TextButton(
+                                              onPressed:
+                                                  () => Navigator.pop(context),
+                                              child: const Text('OK'),
+                                            ),
+                                          ],
+                                        ),
+                                  );
+                                }
                               }
                             }
                           },
@@ -497,7 +507,7 @@ class SignUpScreen extends StatelessWidget {
                             borderSide: const BorderSide(color: Colors.red),
                           ),
                           filled: true,
-                          fillColor: Colors.white.withOpacity(0.1),
+                          fillColor: Colors.white.withAlpha(25),
                         ),
                         validator: (value) {
                           if (value == null || value.isEmpty) {
@@ -537,7 +547,7 @@ class SignUpScreen extends StatelessWidget {
                             borderSide: const BorderSide(color: Colors.red),
                           ),
                           filled: true,
-                          fillColor: Colors.white.withOpacity(0.1),
+                          fillColor: Colors.white.withAlpha(25),
                         ),
                         validator: (value) {
                           if (value == null || value.isEmpty) {
@@ -575,7 +585,7 @@ class SignUpScreen extends StatelessWidget {
                             borderSide: const BorderSide(color: Colors.red),
                           ),
                           filled: true,
-                          fillColor: Colors.white.withOpacity(0.1),
+                          fillColor: Colors.white.withAlpha(25),
                         ),
                         validator: (value) {
                           if (value == null || value.isEmpty) {
@@ -597,18 +607,22 @@ class SignUpScreen extends StatelessWidget {
                             if (formKey.currentState?.validate() ?? false) {
                               if (await checkInternetConnection()) {
                                 try {
-                                  print('Attempting to create account...');
+                                  debugPrint('Attempting to create account...');
 
-                                  showDialog(
-                                    context: context,
-                                    barrierDismissible: false,
-                                    builder:
-                                        (context) => const Center(
-                                          child: CircularProgressIndicator(
-                                            color: Colors.amber,
+                                  // Store context in a local variable
+                                  final currentContext = context;
+                                  if (currentContext.mounted) {
+                                    showDialog(
+                                      context: currentContext,
+                                      barrierDismissible: false,
+                                      builder:
+                                          (context) => const Center(
+                                            child: CircularProgressIndicator(
+                                              color: Colors.amber,
+                                            ),
                                           ),
-                                        ),
-                                  );
+                                    );
+                                  }
 
                                   UserCredential userCredential =
                                       await FirebaseAuth.instance
@@ -618,9 +632,12 @@ class SignUpScreen extends StatelessWidget {
                                                 passwordController.text.trim(),
                                           );
 
-                                  print('Account created successfully!');
+                                  debugPrint('Account created successfully!');
 
-                                  Navigator.pop(context);
+                                  // Pop the loading dialog if context is still valid
+                                  if (currentContext.mounted) {
+                                    Navigator.pop(currentContext);
+                                  }
 
                                   await FirebaseFirestore.instance
                                       .collection('users')
@@ -631,32 +648,43 @@ class SignUpScreen extends StatelessWidget {
                                             FieldValue.serverTimestamp(),
                                       });
 
-                                  showDialog(
-                                    context: context,
-                                    builder:
-                                        (context) => AlertDialog(
-                                          title: const Text('Account Created'),
-                                          content: const Text(
-                                            'Your account has been created successfully!',
-                                          ),
-                                          actions: [
-                                            TextButton(
-                                              onPressed: () {
-                                                Navigator.pop(context);
-                                                Navigator.pushReplacementNamed(
-                                                  context,
-                                                  '/role-selection',
-                                                );
-                                              },
-                                              child: const Text('OK'),
+                                  // Show success dialog if context is still valid
+                                  if (currentContext.mounted) {
+                                    showDialog(
+                                      context: currentContext,
+                                      builder:
+                                          (dialogContext) => AlertDialog(
+                                            title: const Text(
+                                              'Account Created',
                                             ),
-                                          ],
-                                        ),
-                                  );
+                                            content: const Text(
+                                              'Your account has been created successfully!',
+                                            ),
+                                            actions: [
+                                              TextButton(
+                                                onPressed: () {
+                                                  Navigator.pop(dialogContext);
+                                                  if (currentContext.mounted) {
+                                                    Navigator.pushReplacementNamed(
+                                                      currentContext,
+                                                      '/role-selection',
+                                                    );
+                                                  }
+                                                },
+                                                child: const Text('OK'),
+                                              ),
+                                            ],
+                                          ),
+                                    );
+                                  }
                                 } on FirebaseAuthException catch (e) {
-                                  Navigator.of(context).pop();
+                                  // Close loading dialog
+                                  final ctx = context;
+                                  if (ctx.mounted) {
+                                    Navigator.of(ctx).pop();
+                                  }
 
-                                  print('Error creating account: $e');
+                                  debugPrint('Error creating account: $e');
 
                                   String errorMessage;
                                   switch (e.code) {
@@ -681,64 +709,83 @@ class SignUpScreen extends StatelessWidget {
                                           'An error occurred: ${e.message}';
                                   }
 
-                                  showDialog(
-                                    context: context,
-                                    builder:
-                                        (context) => AlertDialog(
-                                          title: const Text('Error'),
-                                          content: Text(errorMessage),
-                                          actions: [
-                                            TextButton(
-                                              onPressed:
-                                                  () => Navigator.pop(context),
-                                              child: const Text('OK'),
-                                            ),
-                                          ],
-                                        ),
-                                  );
+                                  // Show error dialog if context is still valid
+                                  if (ctx.mounted) {
+                                    showDialog(
+                                      context: ctx,
+                                      builder:
+                                          (dialogContext) => AlertDialog(
+                                            title: const Text('Error'),
+                                            content: Text(errorMessage),
+                                            actions: [
+                                              TextButton(
+                                                onPressed:
+                                                    () => Navigator.pop(
+                                                      dialogContext,
+                                                    ),
+                                                child: const Text('OK'),
+                                              ),
+                                            ],
+                                          ),
+                                    );
+                                  }
                                 } catch (e) {
-                                  Navigator.of(context).pop();
+                                  // Close loading dialog
+                                  final ctx = context;
+                                  if (ctx.mounted) {
+                                    Navigator.of(ctx).pop();
+                                  }
 
-                                  print('Unexpected error: $e');
+                                  debugPrint('Unexpected error: $e');
 
+                                  // Show error dialog if context is still valid
+                                  if (ctx.mounted) {
+                                    showDialog(
+                                      context: ctx,
+                                      builder:
+                                          (dialogContext) => AlertDialog(
+                                            title: const Text('Error'),
+                                            content: Text(
+                                              'An unexpected error occurred: $e',
+                                            ),
+                                            actions: [
+                                              TextButton(
+                                                onPressed:
+                                                    () => Navigator.pop(
+                                                      dialogContext,
+                                                    ),
+                                                child: const Text('OK'),
+                                              ),
+                                            ],
+                                          ),
+                                    );
+                                  }
+                                }
+                              } else {
+                                final ctx = context;
+                                if (ctx.mounted) {
                                   showDialog(
-                                    context: context,
+                                    context: ctx,
                                     builder:
-                                        (context) => AlertDialog(
-                                          title: const Text('Error'),
-                                          content: Text(
-                                            'An unexpected error occurred: $e',
+                                        (dialogContext) => AlertDialog(
+                                          title: const Text(
+                                            'No Internet Connection',
+                                          ),
+                                          content: const Text(
+                                            'Please check your internet connection and try again.',
                                           ),
                                           actions: [
                                             TextButton(
                                               onPressed:
-                                                  () => Navigator.pop(context),
+                                                  () => Navigator.pop(
+                                                    dialogContext,
+                                                  ),
                                               child: const Text('OK'),
                                             ),
                                           ],
                                         ),
                                   );
                                 }
-                              } else {
-                                showDialog(
-                                  context: context,
-                                  builder:
-                                      (context) => AlertDialog(
-                                        title: const Text(
-                                          'No Internet Connection',
-                                        ),
-                                        content: const Text(
-                                          'Please check your internet connection and try again.',
-                                        ),
-                                        actions: [
-                                          TextButton(
-                                            onPressed:
-                                                () => Navigator.pop(context),
-                                            child: const Text('OK'),
-                                          ),
-                                        ],
-                                      ),
-                                );
                               }
                             }
                           },
@@ -861,13 +908,19 @@ class WelcomeScreen extends StatelessWidget {
                             route = '/role-selection';
                         }
 
-                        Navigator.pushReplacementNamed(context, route);
+                        final ctx = context;
+                        if (ctx.mounted) {
+                          Navigator.pushReplacementNamed(ctx, route);
+                        }
                       } else {
                         // If no role exists, navigate to role selection
-                        Navigator.pushReplacementNamed(
-                          context,
-                          '/role-selection',
-                        );
+                        final ctx = context;
+                        if (ctx.mounted) {
+                          Navigator.pushReplacementNamed(
+                            ctx,
+                            '/role-selection',
+                          );
+                        }
                       }
                     },
                     style: ElevatedButton.styleFrom(
@@ -918,15 +971,23 @@ class EditAccountScreen extends StatelessWidget {
               const SizedBox(height: 20),
               ElevatedButton(
                 onPressed: () async {
+                  final ctx = context;
                   try {
                     User? user = auth.currentUser;
-                    await user?.updateEmail(emailController.text);
+                    await user?.verifyBeforeUpdateEmail(emailController.text);
                     await firestore.collection('users').doc(user?.uid).update({
                       'email': emailController.text,
                     });
-                    Navigator.pop(context);
+                    if (ctx.mounted) {
+                      Navigator.pop(ctx);
+                    }
                   } catch (e) {
-                    print(e);
+                    debugPrint('Error updating email: $e');
+                    if (ctx.mounted) {
+                      ScaffoldMessenger.of(ctx).showSnackBar(
+                        SnackBar(content: Text('Error updating email: $e')),
+                      );
+                    }
                   }
                 },
                 child: const Text('Update Email'),
@@ -968,9 +1029,11 @@ Future<bool> checkInternetConnection() async {
   }
   try {
     var connectivityResult = await Connectivity().checkConnectivity();
-    return connectivityResult != ConnectivityResult.none;
+    return connectivityResult.contains(ConnectivityResult.wifi) ||
+        connectivityResult.contains(ConnectivityResult.mobile) ||
+        connectivityResult.contains(ConnectivityResult.ethernet);
   } catch (e) {
-    print('Error checking connectivity: $e');
+    debugPrint('Error checking connectivity: $e');
     return true; // Return true if there's an error checking connectivity
   }
 }

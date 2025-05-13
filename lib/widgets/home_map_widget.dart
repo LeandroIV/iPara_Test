@@ -76,16 +76,14 @@ class HomeMapWidgetState extends State<HomeMapWidget> {
   void initState() {
     super.initState();
 
-    // Delay map initialization slightly to ensure widget is fully mounted
-    Future.delayed(const Duration(milliseconds: 300), () {
-      if (mounted) {
-        initializeLocation();
-        // For Android/iOS, ensure the Google Maps services are initialized
-        _checkGooglePlayServices();
-        // Initialize the location service
-        _initializeLocationService();
-      }
-    });
+    // Initialize map immediately to prevent black screen
+    initializeLocation();
+
+    // For Android/iOS, ensure the Google Maps services are initialized
+    _checkGooglePlayServices();
+
+    // Initialize the location service
+    _initializeLocationService();
   }
 
   // Initialize the location service
@@ -414,7 +412,12 @@ class HomeMapWidgetState extends State<HomeMapWidget> {
       builder:
           (context) => Container(
             decoration: BoxDecoration(
-              color: Colors.black.withOpacity(0.8),
+              color: Colors.black.withValues(
+                red: 0,
+                green: 0,
+                blue: 0,
+                alpha: 204,
+              ), // 0.8 * 255 = 204
               borderRadius: const BorderRadius.vertical(
                 top: Radius.circular(16),
               ),
@@ -586,7 +589,12 @@ class HomeMapWidgetState extends State<HomeMapWidget> {
         mainAxisSize: MainAxisSize.min,
         children: [
           CircleAvatar(
-            backgroundColor: color.withOpacity(0.2),
+            backgroundColor: Color.fromRGBO(
+              color.red,
+              color.green,
+              color.blue,
+              0.2,
+            ),
             radius: 20,
             child: Icon(icon, color: color, size: 20),
           ),
@@ -679,12 +687,35 @@ class HomeMapWidgetState extends State<HomeMapWidget> {
       await precacheImage(assetImage, context);
 
       try {
-        // Create a custom bitmap from the asset
+        // Create a custom bitmap from the asset with reduced size
         final ByteData data = await rootBundle.load(iconPath);
-        final Uint8List bytes = data.buffer.asUint8List();
-        return BitmapDescriptor.bytes(bytes);
+        final Uint8List iconBytes = data.buffer.asUint8List();
+
+        // Resize the image to a smaller size (40x40 pixels)
+        final ui.Codec codec = await ui.instantiateImageCodec(
+          iconBytes,
+          targetWidth: 40, // Reduced size from default
+          targetHeight: 40, // Reduced size from default
+        );
+        final ui.FrameInfo frameInfo = await codec.getNextFrame();
+
+        // Convert the resized image to bytes
+        final ui.Image resizedImage = frameInfo.image;
+        final ByteData? byteData = await resizedImage.toByteData(
+          format: ui.ImageByteFormat.png,
+        );
+
+        if (byteData != null) {
+          final Uint8List resizedBytes = byteData.buffer.asUint8List();
+          debugPrint('Successfully resized commuter icon to 40x40');
+          return BitmapDescriptor.bytes(resizedBytes);
+        }
+
+        // If resizing fails, fall back to the original bytes
+        debugPrint('Resizing failed, using original size');
+        return BitmapDescriptor.bytes(iconBytes);
       } catch (e) {
-        debugPrint('Error loading asset as bytes: $e');
+        debugPrint('Error processing commuter icon: $e');
       }
 
       debugPrint('Successfully loaded commuter icon');
@@ -987,7 +1018,7 @@ class HomeMapWidgetState extends State<HomeMapWidget> {
       text: TextSpan(
         text: eta.replaceAll(
           'min',
-          'mins',
+          'min/s',
         ), // Format as "2 mins" as shown in reference
         style: TextStyle(
           color: Colors.black,
@@ -1882,13 +1913,40 @@ class HomeMapWidgetState extends State<HomeMapWidget> {
         // by adding a custom marker at the middle of the polyline
         if (_isLoading)
           Container(
-            color: Colors.black.withValues(
-              red: 0,
-              green: 0,
-              blue: 0,
-              alpha: 128, // 0.5 * 255 = 128
+            color:
+                Colors.transparent, // Transparent background instead of black
+            child: Center(
+              child: Card(
+                color: Colors.white,
+                elevation: 4,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    vertical: 16,
+                    horizontal: 24,
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const CircularProgressIndicator(
+                        valueColor: AlwaysStoppedAnimation<Color>(Colors.amber),
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        'Loading map...',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.black87,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             ),
-            child: const Center(child: CircularProgressIndicator()),
           ),
       ],
     );

@@ -9,10 +9,14 @@ import '../edit_profile_screen.dart';
 import '../settings/settings_screen.dart';
 import '../family/family_group_screen.dart';
 import '../emergency/emergency_screen.dart';
+import '../help_support_screen.dart';
+import 'trip_history_screen.dart';
+import 'favorite_routes_screen.dart';
+import 'notifications_screen.dart';
+import 'payment_screen.dart';
 import 'dart:async';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 class CommuterHomeScreen extends StatefulWidget {
   const CommuterHomeScreen({super.key});
@@ -193,8 +197,8 @@ class _CommuterHomeScreenState extends State<CommuterHomeScreen>
 
         // Debug: Print search results information
         if (results.isNotEmpty) {
-          print('Search results found: ${results.length}');
-          print('First result: ${results[0]}');
+          debugPrint('Search results found: ${results.length}');
+          debugPrint('First result: ${results[0]}');
 
           // Check if the results have the expected structure
           final mainText =
@@ -204,10 +208,10 @@ class _CommuterHomeScreenState extends State<CommuterHomeScreen>
           final secondaryText =
               results[0]['structured_formatting']?['secondary_text'] ?? '';
 
-          print('Main text: $mainText');
-          print('Secondary text: $secondaryText');
+          debugPrint('Main text: $mainText');
+          debugPrint('Secondary text: $secondaryText');
         } else {
-          print('No search results found for query: $query');
+          debugPrint('No search results found for query: $query');
         }
 
         setState(() {
@@ -216,7 +220,7 @@ class _CommuterHomeScreenState extends State<CommuterHomeScreen>
         });
       }
     } catch (e) {
-      print('Error searching places: $e');
+      debugPrint('Error searching places: $e');
       setState(() {
         _googlePlacesResults = [];
         _isLoadingPlaces = false;
@@ -261,10 +265,11 @@ class _CommuterHomeScreenState extends State<CommuterHomeScreen>
               ),
               ElevatedButton(
                 onPressed: () async {
-                  Navigator.pop(context);
+                  final ctx = context;
+                  Navigator.pop(ctx);
                   await UserService.clearUserRole();
-                  if (mounted) {
-                    Navigator.pushReplacementNamed(context, '/role-selection');
+                  if (mounted && ctx.mounted) {
+                    Navigator.pushReplacementNamed(ctx, '/role-selection');
                   }
                 },
                 child: const Text('Switch'),
@@ -316,15 +321,17 @@ class _CommuterHomeScreenState extends State<CommuterHomeScreen>
         Navigator.of(context).pop();
       }
 
-      print('Error signing out: $e');
+      debugPrint('Error signing out: $e');
 
-      // Show error message
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Sign out failed: ${e.toString()}'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      // Show error message if context is still valid
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Sign out failed: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 
@@ -971,24 +978,22 @@ class _CommuterHomeScreenState extends State<CommuterHomeScreen>
                                         });
                                       },
                                       child: Container(
-                                        padding: EdgeInsets.all(4),
+                                        padding: const EdgeInsets.symmetric(
+                                          vertical: 6,
+                                          horizontal: 8,
+                                        ),
                                         decoration: BoxDecoration(
-                                          color: Colors.amber.withValues(
-                                            red: 255,
-                                            green: 193,
-                                            blue: 7,
-                                            alpha: 50,
-                                          ),
+                                          color: Colors.black,
                                           borderRadius: BorderRadius.circular(
                                             4,
                                           ),
                                         ),
                                         child: Icon(
                                           _isRoutePanelMinimized
-                                              ? Icons.expand_more
-                                              : Icons.expand_less,
-                                          color: Colors.amber,
-                                          size: 16,
+                                              ? Icons.chevron_right
+                                              : Icons.chevron_left,
+                                          color: Colors.white,
+                                          size: 18,
                                         ),
                                       ),
                                     ),
@@ -1249,7 +1254,14 @@ class _CommuterHomeScreenState extends State<CommuterHomeScreen>
                                     title: 'Trip History',
                                     onTap: () {
                                       _toggleDrawer();
-                                      // TODO: Navigate to trip history
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder:
+                                              (context) =>
+                                                  const TripHistoryScreen(),
+                                        ),
+                                      );
                                     },
                                   ),
                                   _buildDrawerItem(
@@ -1257,7 +1269,14 @@ class _CommuterHomeScreenState extends State<CommuterHomeScreen>
                                     title: 'Favorite Routes',
                                     onTap: () {
                                       _toggleDrawer();
-                                      // TODO: Navigate to favorite routes
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder:
+                                              (context) =>
+                                                  const FavoriteRoutesScreen(),
+                                        ),
+                                      );
                                     },
                                   ),
                                   _buildDrawerItem(
@@ -1265,7 +1284,14 @@ class _CommuterHomeScreenState extends State<CommuterHomeScreen>
                                     title: 'Notifications',
                                     onTap: () {
                                       _toggleDrawer();
-                                      // TODO: Navigate to notifications
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder:
+                                              (context) =>
+                                                  const NotificationsScreen(),
+                                        ),
+                                      );
                                     },
                                   ),
                                   _buildDrawerItem(
@@ -1314,6 +1340,22 @@ class _CommuterHomeScreenState extends State<CommuterHomeScreen>
                                       );
                                     },
                                   ),
+                                  // Payment option
+                                  _buildDrawerItem(
+                                    icon: Icons.payment,
+                                    title: 'Payment',
+                                    onTap: () {
+                                      _toggleDrawer();
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder:
+                                              (context) =>
+                                                  const PaymentScreen(),
+                                        ),
+                                      );
+                                    },
+                                  ),
                                   // Emergency option
                                   _buildDrawerItem(
                                     icon: Icons.emergency,
@@ -1335,7 +1377,14 @@ class _CommuterHomeScreenState extends State<CommuterHomeScreen>
                                     title: 'Help & Support',
                                     onTap: () {
                                       _toggleDrawer();
-                                      // TODO: Navigate to help & support
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder:
+                                              (context) =>
+                                                  const HelpSupportScreen(),
+                                        ),
+                                      );
                                     },
                                   ),
                                   // Add Switch Role option to drawer menu

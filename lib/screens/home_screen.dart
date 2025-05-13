@@ -69,7 +69,7 @@ class _HomeScreenState extends State<HomeScreen>
         Navigator.of(context).pushReplacementNamed('/login');
       }
     } catch (e) {
-      print('Error signing out: $e');
+      debugPrint('Error signing out: $e');
     }
   }
 
@@ -97,7 +97,7 @@ class _HomeScreenState extends State<HomeScreen>
         });
       }
     } catch (e) {
-      print('Error searching places: $e');
+      debugPrint('Error searching places: $e');
       setState(() {
         _googlePlacesResults = [];
         _isLoadingPlaces = false;
@@ -176,7 +176,9 @@ class _HomeScreenState extends State<HomeScreen>
                         vertical: 8,
                       ),
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.1),
+                        color: Colors.white.withAlpha(
+                          26,
+                        ), // 0.1 * 255 = 25.5 ≈ 26
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Column(
@@ -274,7 +276,9 @@ class _HomeScreenState extends State<HomeScreen>
                               margin: const EdgeInsets.only(top: 8),
                               padding: const EdgeInsets.all(16.0),
                               decoration: BoxDecoration(
-                                color: Colors.white.withOpacity(0.1),
+                                color: Colors.white.withAlpha(
+                                  26,
+                                ), // 0.1 * 255 = 25.5 ≈ 26
                                 borderRadius: BorderRadius.circular(12),
                               ),
                               child: Column(
@@ -374,7 +378,9 @@ class _HomeScreenState extends State<HomeScreen>
                                         backgroundColor:
                                             isSelected
                                                 ? Colors.amber
-                                                : Colors.white.withOpacity(0.1),
+                                                : Colors.white.withAlpha(
+                                                  26,
+                                                ), // 0.1 * 255 = 25.5 ≈ 26
                                         padding: const EdgeInsets.symmetric(
                                           horizontal: 24,
                                           vertical: 16,
@@ -443,9 +449,8 @@ class _HomeScreenState extends State<HomeScreen>
               child: GestureDetector(
                 onTap: _toggleDrawer,
                 child: Container(
-                  color: Colors.black.withOpacity(
-                    0.3,
-                  ), // Set overlay opacity to 30%
+                  color: Colors.black.withAlpha(77), // 0.3 * 255 = 76.5 ≈ 77
+                  // Set overlay opacity to 30%
                 ),
               ),
             ),
@@ -470,7 +475,9 @@ class _HomeScreenState extends State<HomeScreen>
                         color: Colors.black,
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.amber.withOpacity(0.3),
+                            color: Colors.amber.withAlpha(
+                              77,
+                            ), // 0.3 * 255 = 76.5 ≈ 77
                             blurRadius: 10,
                           ),
                         ],
@@ -482,7 +489,9 @@ class _HomeScreenState extends State<HomeScreen>
                             Container(
                               padding: const EdgeInsets.all(16),
                               decoration: BoxDecoration(
-                                color: Colors.white.withOpacity(0.1),
+                                color: Colors.white.withAlpha(
+                                  26,
+                                ), // 0.1 * 255 = 25.5 ≈ 26
                               ),
                               child: Row(
                                 children: [
@@ -520,9 +529,9 @@ class _HomeScreenState extends State<HomeScreen>
                                         Text(
                                           user?.email ?? '',
                                           style: TextStyle(
-                                            color: Colors.white.withOpacity(
-                                              0.7,
-                                            ),
+                                            color: Colors.white.withAlpha(
+                                              179,
+                                            ), // 0.7 * 255 = 178.5 ≈ 179
                                             fontSize: 14,
                                           ),
                                         ),

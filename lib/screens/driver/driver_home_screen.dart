@@ -10,11 +10,16 @@ import '../notification_settings_screen.dart';
 import '../settings/settings_screen.dart';
 import '../family/family_group_screen.dart';
 import '../emergency/emergency_screen.dart';
+import '../help_support_screen.dart';
 import 'dart:async';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'vehicle_maintenance_screen.dart';
+import 'driver_trip_history_screen.dart';
+import 'driver_routes_screen.dart';
+import 'driver_earnings_screen.dart';
+import '../commuter/notifications_screen.dart';
 
 class DriverHomeScreen extends StatefulWidget {
   const DriverHomeScreen({super.key});
@@ -40,6 +45,9 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
   bool _isLoadingRoutes = false;
   PUVRoute? _selectedRoute;
   String selectedPUVType = 'Jeepney';
+
+  // Add route panel minimized state
+  bool _isRoutePanelMinimized = false;
 
   // Add text controller for destination search
   final TextEditingController _destinationController = TextEditingController();
@@ -186,7 +194,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
         });
       }
     } catch (e) {
-      print('Error searching places: $e');
+      debugPrint('Error searching places: $e');
       setState(() {
         _googlePlacesResults = [];
         _isLoadingPlaces = false;
@@ -216,89 +224,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
     });
   }
 
-  // Helper method to build a compact route card
-  Widget _buildRouteCard(PUVRoute route, bool isSelected) {
-    return Padding(
-      padding: const EdgeInsets.only(right: 6.0),
-      child: InkWell(
-        onTap: () {
-          _displayRoute(route);
-        },
-        borderRadius: BorderRadius.circular(8),
-        child: Container(
-          width: 130, // Reduced width
-          padding: const EdgeInsets.all(6),
-          decoration: BoxDecoration(
-            color:
-                isSelected
-                    ? Color(route.colorValue).withAlpha(75)
-                    : Colors.white.withAlpha(25),
-            borderRadius: BorderRadius.circular(8),
-            border:
-                isSelected
-                    ? Border.all(color: Color(route.colorValue), width: 2)
-                    : Border.all(color: Colors.white10, width: 1),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 4,
-                      vertical: 1,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Color(route.colorValue),
-                      borderRadius: BorderRadius.circular(3),
-                    ),
-                    child: Text(
-                      route.routeCode,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 10,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 4),
-                  Text(
-                    '₱${route.farePrice.toStringAsFixed(0)}',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 10,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 4),
-              Expanded(
-                child: Text(
-                  '${route.startPointName} to ${route.endPointName}',
-                  style: const TextStyle(color: Colors.white, fontSize: 10),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-              Row(
-                children: [
-                  const Icon(Icons.access_time, color: Colors.white70, size: 9),
-                  const SizedBox(width: 2),
-                  Text(
-                    '~${route.estimatedTravelTime} min',
-                    style: const TextStyle(color: Colors.white70, fontSize: 9),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
+  // This method has been replaced with inline code in the ListView.builder
 
   Future<void> _switchUserRole() async {
     showDialog(
@@ -314,10 +240,11 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
               ),
               ElevatedButton(
                 onPressed: () async {
-                  Navigator.pop(context);
+                  final ctx = context;
+                  Navigator.pop(ctx);
                   await UserService.clearUserRole();
-                  if (mounted) {
-                    Navigator.pushReplacementNamed(context, '/role-selection');
+                  if (mounted && ctx.mounted) {
+                    Navigator.pushReplacementNamed(ctx, '/role-selection');
                   }
                 },
                 child: const Text('Switch'),
@@ -369,15 +296,17 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
         Navigator.of(context).pop();
       }
 
-      print('Error signing out: $e');
+      debugPrint('Error signing out: $e');
 
-      // Show error message
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Sign out failed: ${e.toString()}'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      // Show error message if context is still valid
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Sign out failed: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 
@@ -654,46 +583,24 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
                   ),
                   const SizedBox(height: 8),
 
-                  // Compact PUV Type Selection
+                  // PUV Type Selection (Updated to match commuter mode)
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 8.0),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Row(
-                          children: [
-                            const Text(
-                              'Select Your PUV Type',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 14,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            const Spacer(),
-                            if (_selectedRoute != null)
-                              TextButton(
-                                onPressed: _clearRoute,
-                                style: TextButton.styleFrom(
-                                  padding: EdgeInsets.zero,
-                                  minimumSize: Size(0, 0),
-                                  tapTargetSize:
-                                      MaterialTapTargetSize.shrinkWrap,
-                                ),
-                                child: const Text(
-                                  'Clear Route',
-                                  style: TextStyle(
-                                    color: Colors.white70,
-                                    fontSize: 12,
-                                  ),
-                                ),
-                              ),
-                          ],
+                        const Text(
+                          'Select PUV Type',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
-                        const SizedBox(height: 4),
+                        const SizedBox(height: 8),
                         SizedBox(
                           width: double.infinity,
-                          height: 65, // Reduced height
+                          height: 62, // Further reduced height to fix overflow
                           child: SingleChildScrollView(
                             scrollDirection: Axis.horizontal,
                             child: Row(
@@ -703,112 +610,126 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
                                         selectedPUVType == entry.key;
                                     return Padding(
                                       padding: const EdgeInsets.only(
-                                        right: 6.0,
+                                        right: 8.0,
                                       ),
-                                      child: SizedBox(
-                                        width: 70, // Reduced width
-                                        child: ElevatedButton(
-                                          onPressed: () {
-                                            setState(() {
-                                              selectedPUVType = entry.key;
+                                      child: InkWell(
+                                        onTap: () {
+                                          setState(() {
+                                            selectedPUVType = entry.key;
 
-                                              // Clear any selected route when changing PUV type
-                                              _selectedRoute = null;
-                                              if (_mapKey.currentState !=
-                                                  null) {
+                                            // Clear any selected route when changing PUV type
+                                            _selectedRoute = null;
+                                            if (_mapKey.currentState != null) {
+                                              _mapKey.currentState!
+                                                  .clearRoutes();
+
+                                              // Start tracking commuters with the selected PUV type
+                                              if (_isOnline &&
+                                                  _isLocationVisibleToCommuters) {
+                                                debugPrint(
+                                                  'PUV type changed, tracking commuters with: $selectedPUVType',
+                                                );
                                                 _mapKey.currentState!
-                                                    .clearRoutes();
-
-                                                // Start tracking commuters with the selected PUV type
-                                                if (_isOnline &&
-                                                    _isLocationVisibleToCommuters) {
-                                                  debugPrint(
-                                                    'PUV type changed, tracking commuters with: $selectedPUVType',
-                                                  );
-                                                  _mapKey.currentState!
-                                                      .startTrackingCommuters(
-                                                        selectedPUVType,
-                                                      );
-                                                }
+                                                    .startTrackingCommuters(
+                                                      selectedPUVType,
+                                                    );
                                               }
-                                            });
-                                          },
-                                          style: ElevatedButton.styleFrom(
-                                            backgroundColor:
+                                            }
+                                          });
+                                        },
+                                        child: Container(
+                                          width: 75, // Reduced width
+                                          height: 60, // Further reduced height
+                                          decoration: BoxDecoration(
+                                            color:
                                                 isSelected
-                                                    ? Colors.blue
-                                                    : Colors.white.withAlpha(
-                                                      25,
-                                                    ),
-                                            padding: EdgeInsets.zero,
-                                            shape: RoundedRectangleBorder(
-                                              borderRadius:
-                                                  BorderRadius.circular(8),
+                                                    ? Colors
+                                                        .blue // Blue for selected item (driver mode)
+                                                    : Colors
+                                                        .grey[900], // Dark for unselected
+                                            borderRadius: BorderRadius.circular(
+                                              8,
                                             ),
                                           ),
-                                          child: Padding(
-                                            padding: const EdgeInsets.symmetric(
-                                              vertical: 6.0,
-                                            ),
-                                            child: Column(
-                                              mainAxisSize: MainAxisSize.min,
-                                              mainAxisAlignment:
-                                                  MainAxisAlignment.center,
-                                              children: [
-                                                // Icon
-                                                FutureBuilder<Widget>(
-                                                  future: _getPuvTypeIcon(
-                                                    entry.key,
-                                                    isSelected,
-                                                  ),
-                                                  builder: (context, snapshot) {
-                                                    if (snapshot
-                                                            .connectionState ==
-                                                        ConnectionState
-                                                            .waiting) {
-                                                      return SizedBox(
-                                                        width: 20,
-                                                        height: 20,
-                                                        child: CircularProgressIndicator(
-                                                          strokeWidth: 2,
-                                                          color:
-                                                              isSelected
-                                                                  ? Colors.white
-                                                                  : Colors
-                                                                      .white70,
-                                                        ),
-                                                      );
-                                                    }
-                                                    return snapshot.data ??
-                                                        Icon(
-                                                          _getFallbackIconForPuvType(
-                                                            entry.key,
+                                          padding: const EdgeInsets.all(
+                                            4,
+                                          ), // Reduced padding
+                                          child: Column(
+                                            mainAxisAlignment:
+                                                MainAxisAlignment.center,
+                                            mainAxisSize:
+                                                MainAxisSize
+                                                    .min, // Ensure minimum size
+                                            children: [
+                                              // Icon
+                                              FutureBuilder<Widget>(
+                                                future: _getPuvTypeIcon(
+                                                  entry.key,
+                                                  isSelected,
+                                                ),
+                                                builder: (context, snapshot) {
+                                                  if (snapshot
+                                                          .connectionState ==
+                                                      ConnectionState.waiting) {
+                                                    return SizedBox(
+                                                      width: 18,
+                                                      height: 18,
+                                                      child:
+                                                          CircularProgressIndicator(
+                                                            strokeWidth: 2,
+                                                            color:
+                                                                isSelected
+                                                                    ? Colors
+                                                                        .white
+                                                                    : Colors
+                                                                        .white70,
                                                           ),
-                                                          color:
-                                                              isSelected
-                                                                  ? Colors.white
-                                                                  : Colors
-                                                                      .white70,
-                                                          size: 20,
-                                                        );
-                                                  },
+                                                    );
+                                                  }
+                                                  return snapshot.data ??
+                                                      Icon(
+                                                        _getFallbackIconForPuvType(
+                                                          entry.key,
+                                                        ),
+                                                        color:
+                                                            isSelected
+                                                                ? Colors.white
+                                                                : Colors.white,
+                                                        size: 18,
+                                                      );
+                                                },
+                                              ),
+                                              const SizedBox(
+                                                height: 2,
+                                              ), // Reduced spacing
+                                              // PUV Type Name
+                                              Text(
+                                                entry.key,
+                                                style: const TextStyle(
+                                                  color: Colors.white,
+                                                  fontWeight: FontWeight.bold,
+                                                  fontSize:
+                                                      9, // Smaller font size
                                                 ),
-                                                const SizedBox(height: 2),
-                                                // PUV Type Name and count in one line
-                                                Text(
-                                                  '${entry.key} (${entry.value})',
-                                                  style: TextStyle(
-                                                    color:
-                                                        isSelected
-                                                            ? Colors.white
-                                                            : Colors.white70,
-                                                    fontWeight: FontWeight.bold,
-                                                    fontSize: 10,
-                                                  ),
-                                                  textAlign: TextAlign.center,
+                                                textAlign: TextAlign.center,
+                                                overflow:
+                                                    TextOverflow
+                                                        .ellipsis, // Prevent text overflow
+                                              ),
+                                              // Count
+                                              Text(
+                                                '${entry.value}',
+                                                style: const TextStyle(
+                                                  color: Colors.white,
+                                                  fontSize:
+                                                      9, // Smaller font size
                                                 ),
-                                              ],
-                                            ),
+                                                textAlign: TextAlign.center,
+                                                overflow:
+                                                    TextOverflow
+                                                        .ellipsis, // Prevent text overflow
+                                              ),
+                                            ],
                                           ),
                                         ),
                                       ),
@@ -822,47 +743,200 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
                   ),
                   const SizedBox(height: 4),
 
-                  // Compact Available Routes Section
+                  // Available Routes Section (Updated to match commuter mode)
                   if (routes.isNotEmpty)
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 8.0),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text(
-                            'Select Your Route',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 14,
-                              fontWeight: FontWeight.bold,
+                          GestureDetector(
+                            onTap: () {
+                              setState(() {
+                                _isRoutePanelMinimized =
+                                    !_isRoutePanelMinimized;
+                              });
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                vertical: 6,
+                                horizontal: 8,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.black,
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    _isRoutePanelMinimized
+                                        ? Icons.chevron_right
+                                        : Icons.chevron_left,
+                                    color: Colors.white,
+                                    size: 18,
+                                  ),
+                                  const SizedBox(width: 4),
+                                  const Text(
+                                    'Available Routes',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
-                          const SizedBox(height: 4),
-                          SizedBox(
-                            width: double.infinity,
-                            height: 85, // Reduced height
-                            child:
-                                _isLoadingRoutes
-                                    ? const Center(
-                                      child: CircularProgressIndicator(
-                                        color: Colors.blue,
-                                        strokeWidth: 2,
+                          const SizedBox(height: 8),
+                          // Only show the routes list if not minimized
+                          if (!_isRoutePanelMinimized)
+                            SizedBox(
+                              width: double.infinity,
+                              height: 90, // Adjusted height
+                              child:
+                                  _isLoadingRoutes
+                                      ? const Center(
+                                        child: CircularProgressIndicator(
+                                          color: Colors.blue,
+                                          strokeWidth: 2,
+                                        ),
+                                      )
+                                      : ListView.builder(
+                                        scrollDirection: Axis.horizontal,
+                                        itemCount: routes.length,
+                                        itemBuilder: (context, index) {
+                                          final route = routes[index];
+                                          final isSelected =
+                                              _selectedRoute?.id == route.id;
+                                          return Padding(
+                                            padding: const EdgeInsets.only(
+                                              right: 8.0,
+                                            ),
+                                            child: InkWell(
+                                              onTap: () {
+                                                _displayRoute(route);
+                                              },
+                                              borderRadius:
+                                                  BorderRadius.circular(8),
+                                              child: Container(
+                                                width: 140,
+                                                padding: const EdgeInsets.all(
+                                                  8,
+                                                ),
+                                                decoration: BoxDecoration(
+                                                  color:
+                                                      isSelected
+                                                          ? Color(
+                                                            route.colorValue,
+                                                          ).withAlpha(75)
+                                                          : Colors.grey[900],
+                                                  borderRadius:
+                                                      BorderRadius.circular(8),
+                                                  border:
+                                                      isSelected
+                                                          ? Border.all(
+                                                            color: Color(
+                                                              route.colorValue,
+                                                            ),
+                                                            width: 1.5,
+                                                          )
+                                                          : null,
+                                                ),
+                                                child: Column(
+                                                  crossAxisAlignment:
+                                                      CrossAxisAlignment.start,
+                                                  children: [
+                                                    Row(
+                                                      children: [
+                                                        Container(
+                                                          padding:
+                                                              const EdgeInsets.symmetric(
+                                                                horizontal: 4,
+                                                                vertical: 2,
+                                                              ),
+                                                          decoration: BoxDecoration(
+                                                            color: Color(
+                                                              route.colorValue,
+                                                            ),
+                                                            borderRadius:
+                                                                BorderRadius.circular(
+                                                                  4,
+                                                                ),
+                                                          ),
+                                                          child: Text(
+                                                            route.routeCode,
+                                                            style:
+                                                                const TextStyle(
+                                                                  color:
+                                                                      Colors
+                                                                          .white,
+                                                                  fontWeight:
+                                                                      FontWeight
+                                                                          .bold,
+                                                                  fontSize: 12,
+                                                                ),
+                                                          ),
+                                                        ),
+                                                        const SizedBox(
+                                                          width: 4,
+                                                        ),
+                                                        Text(
+                                                          '₱${route.farePrice.toStringAsFixed(0)}',
+                                                          style:
+                                                              const TextStyle(
+                                                                color:
+                                                                    Colors
+                                                                        .white,
+                                                                fontWeight:
+                                                                    FontWeight
+                                                                        .bold,
+                                                                fontSize: 12,
+                                                              ),
+                                                        ),
+                                                      ],
+                                                    ),
+                                                    const SizedBox(height: 4),
+                                                    Text(
+                                                      '${route.startPointName} to ${route.endPointName}',
+                                                      style: const TextStyle(
+                                                        color: Colors.white,
+                                                        fontSize: 12,
+                                                      ),
+                                                      maxLines: 2,
+                                                      overflow:
+                                                          TextOverflow.ellipsis,
+                                                    ),
+                                                    const Spacer(),
+                                                    Row(
+                                                      children: [
+                                                        const Icon(
+                                                          Icons.access_time,
+                                                          color: Colors.white70,
+                                                          size: 12,
+                                                        ),
+                                                        const SizedBox(
+                                                          width: 4,
+                                                        ),
+                                                        Text(
+                                                          '~${route.estimatedTravelTime} min',
+                                                          style: const TextStyle(
+                                                            color:
+                                                                Colors.white70,
+                                                            fontSize: 12,
+                                                          ),
+                                                        ),
+                                                      ],
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                            ),
+                                          );
+                                        },
                                       ),
-                                    )
-                                    : ListView.builder(
-                                      scrollDirection: Axis.horizontal,
-                                      itemCount: routes.length,
-                                      itemBuilder: (context, index) {
-                                        final route = routes[index];
-                                        final isSelected =
-                                            _selectedRoute?.id == route.id;
-                                        return _buildRouteCard(
-                                          route,
-                                          isSelected,
-                                        );
-                                      },
-                                    ),
-                          ),
+                            ),
                         ],
                       ),
                     ),
@@ -1052,7 +1126,14 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
                                     title: 'My Routes',
                                     onTap: () {
                                       _toggleDrawer();
-                                      // TODO: Navigate to routes
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder:
+                                              (context) =>
+                                                  const DriverRoutesScreen(),
+                                        ),
+                                      );
                                     },
                                   ),
                                   _buildDrawerItem(
@@ -1060,7 +1141,14 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
                                     title: 'Trip History',
                                     onTap: () {
                                       _toggleDrawer();
-                                      // TODO: Navigate to trip history
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder:
+                                              (context) =>
+                                                  const DriverTripHistoryScreen(),
+                                        ),
+                                      );
                                     },
                                   ),
                                   _buildDrawerItem(
@@ -1068,7 +1156,14 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
                                     title: 'Earnings',
                                     onTap: () {
                                       _toggleDrawer();
-                                      // TODO: Navigate to earnings
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder:
+                                              (context) =>
+                                                  const DriverEarningsScreen(),
+                                        ),
+                                      );
                                     },
                                   ),
                                   _buildDrawerItem(
@@ -1076,7 +1171,14 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
                                     title: 'Notifications',
                                     onTap: () {
                                       _toggleDrawer();
-                                      // TODO: Navigate to notifications
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder:
+                                              (context) =>
+                                                  const NotificationsScreen(),
+                                        ),
+                                      );
                                     },
                                   ),
                                   _buildDrawerItem(
@@ -1176,7 +1278,14 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
                                     title: 'Help & Support',
                                     onTap: () {
                                       _toggleDrawer();
-                                      // TODO: Navigate to help & support
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder:
+                                              (context) =>
+                                                  const HelpSupportScreen(),
+                                        ),
+                                      );
                                     },
                                   ),
                                   // Add Switch Role option to drawer menu

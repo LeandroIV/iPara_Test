@@ -131,7 +131,7 @@ class LocationService {
               locationData['status'] = 'Available'; // Default status
             }
           } catch (e) {
-            print('Error fetching vehicle data: $e');
+            debugPrint('Error fetching vehicle data: $e');
           }
         }
 
@@ -160,7 +160,7 @@ class LocationService {
           .doc(_userId)
           .set(locationData, SetOptions(merge: true));
     } catch (e) {
-      print('Error updating location: $e');
+      debugPrint('Error updating location: $e');
     }
   }
 
@@ -175,7 +175,7 @@ class LocationService {
         'lastUpdated': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
     } catch (e) {
-      print('Error updating online status: $e');
+      debugPrint('Error updating online status: $e');
     }
   }
 
@@ -193,7 +193,7 @@ class LocationService {
           'puvType': puvType, // For backward compatibility with existing code
         });
       } catch (e) {
-        print('Error updating PUV type: $e');
+        debugPrint('Error updating PUV type: $e');
       }
     }
   }
@@ -220,7 +220,7 @@ class LocationService {
           await _updateLocation(position);
         }
       } catch (e) {
-        print('Error updating driver vehicle info: $e');
+        debugPrint('Error updating driver vehicle info: $e');
       }
     }
   }

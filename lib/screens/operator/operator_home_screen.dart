@@ -3,10 +3,19 @@ import '../../models/user_role.dart';
 import '../../services/user_service.dart';
 import '../edit_profile_screen.dart';
 import '../notification_settings_screen.dart';
+import '../settings/settings_screen.dart';
+import '../help_support_screen.dart';
+import '../commuter/notifications_screen.dart';
+import 'add_driver_screen.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import '../../services/route_service.dart';
 import 'vehicle_management_screen.dart';
 import 'route_management_screen.dart';
+import 'drivers_management_screen.dart';
+import 'finance_screen.dart';
+import 'analytics_screen.dart';
 
 class OperatorHomeScreen extends StatefulWidget {
   const OperatorHomeScreen({super.key});
@@ -20,53 +29,23 @@ class _OperatorHomeScreenState extends State<OperatorHomeScreen>
   bool isDrawerOpen = false;
   late AnimationController _drawerController;
   late Animation<double> _drawerAnimation;
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final RouteService _routeService = RouteService();
 
-  // Placeholder data for fleet statistics
-  final Map<String, int> _fleetStatus = {
-    'Total Vehicles': 24,
-    'Active': 18,
-    'Inactive': 6,
-    'Under Maintenance': 3,
+  // Fleet statistics
+  Map<String, int> _fleetStatus = {
+    'Total Vehicles': 0,
+    'Active': 0,
+    'Inactive': 0,
+    'Under Maintenance': 0,
   };
 
-  // Placeholder data for drivers
-  final List<Map<String, dynamic>> _drivers = [
-    {
-      'name': 'John Doe',
-      'vehicleId': 'JPN-123',
-      'route': 'R2 - Carmen to Divisoria',
-      'status': 'Active',
-      'earnings': 1250.0,
-    },
-    {
-      'name': 'Jane Smith',
-      'vehicleId': 'JPN-456',
-      'route': 'R3 - Bulua to Divisoria',
-      'status': 'Active',
-      'earnings': 950.0,
-    },
-    {
-      'name': 'Mark Johnson',
-      'vehicleId': 'JPN-789',
-      'route': 'R4 - Bugo to Lapasan',
-      'status': 'Inactive',
-      'earnings': 0.0,
-    },
-    {
-      'name': 'Robert Garcia',
-      'vehicleId': 'JPN-234',
-      'route': 'R7 - Balulang to Divisoria',
-      'status': 'Active',
-      'earnings': 1100.0,
-    },
-    {
-      'name': 'Maria Santos',
-      'vehicleId': 'JPN-567',
-      'route': 'R10 - Canitoan to Cogon',
-      'status': 'Active',
-      'earnings': 1320.0,
-    },
-  ];
+  // Driver data
+  List<Map<String, dynamic>> _drivers = [];
+  bool _isLoading = true;
+
+  // Mock earnings data (to be kept as mock)
+  final Map<String, double> _mockEarnings = {'Active': 1250.0, 'Inactive': 0.0};
 
   @override
   void initState() {
@@ -78,6 +57,100 @@ class _OperatorHomeScreenState extends State<OperatorHomeScreen>
     _drawerAnimation = Tween<double>(begin: -1.0, end: 0.0).animate(
       CurvedAnimation(parent: _drawerController, curve: Curves.easeInOut),
     );
+
+    // Load driver data from Firestore
+    _loadDriverData();
+  }
+
+  // Load driver data from Firestore
+  Future<void> _loadDriverData() async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      // Get all driver locations
+      final snapshot =
+          await _firestore
+              .collection('driver_locations')
+              .where('isOnline', isEqualTo: true)
+              .get();
+
+      // Convert to list of maps
+      final List<Map<String, dynamic>> driversList = [];
+
+      for (var doc in snapshot.docs) {
+        final data = doc.data();
+
+        // Get route name if routeId is available
+        String routeName = '';
+        if (data['routeId'] != null) {
+          try {
+            final routeDoc =
+                await _firestore
+                    .collection('routes')
+                    .doc(data['routeId'])
+                    .get();
+
+            if (routeDoc.exists) {
+              routeName = routeDoc.data()?['name'] ?? '';
+            } else if (data['routeCode'] != null) {
+              // Fallback to routeCode if route document doesn't exist
+              routeName = data['routeCode'];
+            }
+          } catch (e) {
+            debugPrint('Error fetching route: $e');
+          }
+        }
+
+        // Create driver data with mock earnings
+        final driver = {
+          'id': doc.id,
+          'name': data['driverName'] ?? 'Unknown Driver',
+          'vehicleId': data['plateNumber'] ?? 'Unknown',
+          'route': routeName.isNotEmpty ? routeName : 'No Route Assigned',
+          'status': data['isOnline'] == true ? 'Active' : 'Inactive',
+          'earnings':
+              data['isOnline'] == true
+                  ? _mockEarnings['Active']!
+                  : _mockEarnings['Inactive']!,
+          'puvType': data['puvType'] ?? 'Unknown',
+        };
+
+        driversList.add(driver);
+      }
+
+      // Update fleet statistics
+      final totalDrivers = driversList.length;
+      final activeDrivers =
+          driversList.where((d) => d['status'] == 'Active').length;
+      final inactiveDrivers = totalDrivers - activeDrivers;
+
+      // Get maintenance count from vehicles collection
+      final vehiclesSnapshot =
+          await _firestore
+              .collection('vehicles')
+              .where('isActive', isEqualTo: false)
+              .get();
+
+      final maintenanceCount = vehiclesSnapshot.docs.length;
+
+      setState(() {
+        _drivers = driversList;
+        _fleetStatus = {
+          'Total Vehicles': totalDrivers,
+          'Active': activeDrivers,
+          'Inactive': inactiveDrivers,
+          'Under Maintenance': maintenanceCount,
+        };
+        _isLoading = false;
+      });
+    } catch (e) {
+      debugPrint('Error loading driver data: $e');
+      setState(() {
+        _isLoading = false;
+      });
+    }
   }
 
   @override
@@ -111,10 +184,11 @@ class _OperatorHomeScreenState extends State<OperatorHomeScreen>
               ),
               ElevatedButton(
                 onPressed: () async {
-                  Navigator.pop(context);
+                  final ctx = context;
+                  Navigator.pop(ctx);
                   await UserService.clearUserRole();
-                  if (mounted) {
-                    Navigator.pushReplacementNamed(context, '/role-selection');
+                  if (mounted && ctx.mounted) {
+                    Navigator.pushReplacementNamed(ctx, '/role-selection');
                   }
                 },
                 child: const Text('Switch'),
@@ -165,15 +239,17 @@ class _OperatorHomeScreenState extends State<OperatorHomeScreen>
         Navigator.of(context).pop();
       }
 
-      print('Error signing out: $e');
+      debugPrint('Error signing out: $e');
 
-      // Show error message
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Sign out failed: ${e.toString()}'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      // Show error message if context is still valid
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Sign out failed: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 
@@ -213,7 +289,9 @@ class _OperatorHomeScreenState extends State<OperatorHomeScreen>
                                 vertical: 6,
                               ),
                               decoration: BoxDecoration(
-                                color: Colors.green.withOpacity(0.2),
+                                color: Colors.green.withAlpha(
+                                  51,
+                                ), // 0.2 * 255 = 51
                                 borderRadius: BorderRadius.circular(16),
                               ),
                               child: Row(
@@ -269,79 +347,92 @@ class _OperatorHomeScreenState extends State<OperatorHomeScreen>
                   // Fleet Statistics Cards
                   SizedBox(
                     height: 110,
-                    child: ListView(
-                      scrollDirection: Axis.horizontal,
-                      padding: EdgeInsets.symmetric(horizontal: 16),
-                      children:
-                          _fleetStatus.entries.map((entry) {
-                            Color cardColor;
-                            IconData cardIcon;
+                    child:
+                        _isLoading
+                            ? Center(child: CircularProgressIndicator())
+                            : ListView(
+                              scrollDirection: Axis.horizontal,
+                              padding: EdgeInsets.symmetric(horizontal: 16),
+                              children:
+                                  _fleetStatus.entries.map((entry) {
+                                    Color cardColor;
+                                    IconData cardIcon;
 
-                            switch (entry.key) {
-                              case 'Total Vehicles':
-                                cardColor = Colors.blue;
-                                cardIcon = Icons.directions_car;
-                                break;
-                              case 'Active':
-                                cardColor = Colors.green;
-                                cardIcon = Icons.check_circle;
-                                break;
-                              case 'Inactive':
-                                cardColor = Colors.red;
-                                cardIcon = Icons.cancel;
-                                break;
-                              case 'Under Maintenance':
-                                cardColor = Colors.orange;
-                                cardIcon = Icons.build;
-                                break;
-                              default:
-                                cardColor = Colors.grey;
-                                cardIcon = Icons.info;
-                            }
+                                    switch (entry.key) {
+                                      case 'Total Vehicles':
+                                        cardColor = Colors.blue;
+                                        cardIcon = Icons.directions_car;
+                                        break;
+                                      case 'Active':
+                                        cardColor = Colors.green;
+                                        cardIcon = Icons.check_circle;
+                                        break;
+                                      case 'Inactive':
+                                        cardColor = Colors.red;
+                                        cardIcon = Icons.cancel;
+                                        break;
+                                      case 'Under Maintenance':
+                                        cardColor = Colors.orange;
+                                        cardIcon = Icons.build;
+                                        break;
+                                      default:
+                                        cardColor = Colors.grey;
+                                        cardIcon = Icons.info;
+                                    }
 
-                            return Container(
-                              width: 150,
-                              margin: EdgeInsets.only(right: 12),
-                              padding: EdgeInsets.all(12),
-                              decoration: BoxDecoration(
-                                gradient: LinearGradient(
-                                  begin: Alignment.topLeft,
-                                  end: Alignment.bottomRight,
-                                  colors: [
-                                    cardColor.withOpacity(0.7),
-                                    cardColor.withOpacity(0.4),
-                                  ],
-                                ),
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                mainAxisAlignment: MainAxisAlignment.start,
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Icon(cardIcon, color: Colors.white, size: 24),
-                                  SizedBox(height: 8),
-                                  Text(
-                                    entry.value.toString(),
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 20,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                  Text(
-                                    entry.key,
-                                    style: TextStyle(
-                                      color: Colors.white70,
-                                      fontSize: 12,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            );
-                          }).toList(),
-                    ),
+                                    return Container(
+                                      width: 150,
+                                      margin: EdgeInsets.only(right: 12),
+                                      padding: EdgeInsets.all(12),
+                                      decoration: BoxDecoration(
+                                        gradient: LinearGradient(
+                                          begin: Alignment.topLeft,
+                                          end: Alignment.bottomRight,
+                                          colors: [
+                                            cardColor.withAlpha(
+                                              179,
+                                            ), // 0.7 * 255 = 178.5 ≈ 179
+                                            cardColor.withAlpha(
+                                              102,
+                                            ), // 0.4 * 255 = 102
+                                          ],
+                                        ),
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      child: Column(
+                                        mainAxisSize: MainAxisSize.min,
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.start,
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Icon(
+                                            cardIcon,
+                                            color: Colors.white,
+                                            size: 24,
+                                          ),
+                                          SizedBox(height: 8),
+                                          Text(
+                                            entry.value.toString(),
+                                            style: TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 20,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                          Text(
+                                            entry.key,
+                                            style: TextStyle(
+                                              color: Colors.white70,
+                                              fontSize: 12,
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    );
+                                  }).toList(),
+                            ),
                   ),
 
                   const SizedBox(height: 24),
@@ -362,9 +453,22 @@ class _OperatorHomeScreenState extends State<OperatorHomeScreen>
                         ),
                         Row(
                           children: [
+                            IconButton(
+                              onPressed: _isLoading ? null : _loadDriverData,
+                              icon: Icon(Icons.refresh, size: 20),
+                              tooltip: 'Refresh',
+                              color: Colors.green,
+                            ),
                             TextButton.icon(
                               onPressed: () {
-                                // Navigate to all drivers
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder:
+                                        (context) =>
+                                            const DriversManagementScreen(),
+                                  ),
+                                );
                               },
                               icon: Icon(Icons.visibility, size: 16),
                               label: Text('View All'),
@@ -394,111 +498,138 @@ class _OperatorHomeScreenState extends State<OperatorHomeScreen>
 
                   // Driver List in an Expanded widget to take remaining space
                   Expanded(
-                    child: ListView.builder(
-                      padding: EdgeInsets.only(
-                        left: 16,
-                        right: 16,
-                        top: 8,
-                        bottom: 80, // Extra bottom padding for FAB
-                      ),
-                      itemCount: _drivers.length,
-                      itemBuilder: (context, index) {
-                        final driver = _drivers[index];
-                        final bool isActive = driver['status'] == 'Active';
+                    child:
+                        _isLoading
+                            ? Center(child: CircularProgressIndicator())
+                            : _drivers.isEmpty
+                            ? Center(
+                              child: Text(
+                                'No active drivers found',
+                                style: TextStyle(color: Colors.white70),
+                              ),
+                            )
+                            : ListView.builder(
+                              padding: EdgeInsets.only(
+                                left: 16,
+                                right: 16,
+                                top: 8,
+                                bottom: 80, // Extra bottom padding for FAB
+                              ),
+                              itemCount: _drivers.length,
+                              itemBuilder: (context, index) {
+                                final driver = _drivers[index];
+                                final bool isActive =
+                                    driver['status'] == 'Active';
 
-                        return Card(
-                          margin: EdgeInsets.only(bottom: 12),
-                          color: Colors.white.withOpacity(0.1),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: ListTile(
-                            contentPadding: EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 4,
-                            ),
-                            leading: CircleAvatar(
-                              backgroundColor:
-                                  isActive ? Colors.green : Colors.red,
-                              child: Icon(
-                                isActive ? Icons.person : Icons.person_off,
-                                color: Colors.white,
-                              ),
-                            ),
-                            title: Text(
-                              driver['name'],
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            subtitle: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                SizedBox(height: 4),
-                                Text(
-                                  'Vehicle: ${driver['vehicleId']}',
-                                  style: TextStyle(color: Colors.white70),
-                                ),
-                                Text(
-                                  'Route: ${driver['route']}',
-                                  style: TextStyle(color: Colors.white70),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ],
-                            ),
-                            trailing: SizedBox(
-                              width: 80,
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                crossAxisAlignment: CrossAxisAlignment.end,
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Container(
-                                    padding: EdgeInsets.symmetric(
-                                      horizontal: 6,
-                                      vertical: 2,
+                                return Card(
+                                  margin: EdgeInsets.only(bottom: 12),
+                                  color: Colors.white.withAlpha(
+                                    26,
+                                  ), // 0.1 * 255 = 25.5 ≈ 26
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: ListTile(
+                                    contentPadding: EdgeInsets.symmetric(
+                                      horizontal: 16,
+                                      vertical: 4,
                                     ),
-                                    decoration: BoxDecoration(
-                                      color:
-                                          isActive
-                                              ? Colors.green.withOpacity(0.2)
-                                              : Colors.red.withOpacity(0.2),
-                                      borderRadius: BorderRadius.circular(10),
-                                    ),
-                                    child: Text(
-                                      driver['status'],
-                                      style: TextStyle(
-                                        color:
-                                            isActive
-                                                ? Colors.green
-                                                : Colors.red,
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 10,
+                                    leading: CircleAvatar(
+                                      backgroundColor:
+                                          isActive ? Colors.green : Colors.red,
+                                      child: Icon(
+                                        isActive
+                                            ? Icons.person
+                                            : Icons.person_off,
+                                        color: Colors.white,
                                       ),
                                     ),
-                                  ),
-                                  SizedBox(height: 2),
-                                  Text(
-                                    '₱ ${driver['earnings']}',
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 12,
+                                    title: Text(
+                                      driver['name'],
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.bold,
+                                      ),
                                     ),
+                                    subtitle: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        SizedBox(height: 4),
+                                        Text(
+                                          'Vehicle: ${driver['vehicleId']}',
+                                          style: TextStyle(
+                                            color: Colors.white70,
+                                          ),
+                                        ),
+                                        Text(
+                                          'Route: ${driver['route']}',
+                                          style: TextStyle(
+                                            color: Colors.white70,
+                                          ),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ],
+                                    ),
+                                    trailing: SizedBox(
+                                      width: 80,
+                                      child: Column(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.center,
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.end,
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Container(
+                                            padding: EdgeInsets.symmetric(
+                                              horizontal: 6,
+                                              vertical: 2,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              color:
+                                                  isActive
+                                                      ? Colors.green.withAlpha(
+                                                        51,
+                                                      ) // 0.2 * 255 = 51
+                                                      : Colors.red.withAlpha(
+                                                        51, // 0.2 * 255 = 51
+                                                      ),
+                                              borderRadius:
+                                                  BorderRadius.circular(10),
+                                            ),
+                                            child: Text(
+                                              driver['status'],
+                                              style: TextStyle(
+                                                color:
+                                                    isActive
+                                                        ? Colors.green
+                                                        : Colors.red,
+                                                fontWeight: FontWeight.bold,
+                                                fontSize: 10,
+                                              ),
+                                            ),
+                                          ),
+                                          SizedBox(height: 2),
+                                          Text(
+                                            '₱ ${driver['earnings']}',
+                                            style: TextStyle(
+                                              color: Colors.white,
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 12,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    onTap: () {
+                                      // Navigate to driver details
+                                    },
                                   ),
-                                ],
-                              ),
+                                );
+                              },
                             ),
-                            onTap: () {
-                              // Navigate to driver details
-                            },
-                          ),
-                        );
-                      },
-                    ),
                   ),
                 ],
               ),
@@ -510,7 +641,9 @@ class _OperatorHomeScreenState extends State<OperatorHomeScreen>
             Positioned.fill(
               child: GestureDetector(
                 onTap: _toggleDrawer,
-                child: Container(color: Colors.black.withOpacity(0.3)),
+                child: Container(
+                  color: Colors.black.withAlpha(77),
+                ), // 0.3 * 255 = 76.5 ≈ 77
               ),
             ),
 
@@ -534,7 +667,9 @@ class _OperatorHomeScreenState extends State<OperatorHomeScreen>
                         color: Colors.black,
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.green.withOpacity(0.3),
+                            color: Colors.green.withAlpha(
+                              77,
+                            ), // 0.3 * 255 = 76.5 ≈ 77
                             blurRadius: 10,
                           ),
                         ],
@@ -546,7 +681,9 @@ class _OperatorHomeScreenState extends State<OperatorHomeScreen>
                             Container(
                               padding: EdgeInsets.all(16),
                               decoration: BoxDecoration(
-                                color: Colors.green.withOpacity(0.2),
+                                color: Colors.green.withAlpha(
+                                  51,
+                                ), // 0.2 * 255 = 51
                               ),
                               child: Row(
                                 children: [
@@ -615,7 +752,14 @@ class _OperatorHomeScreenState extends State<OperatorHomeScreen>
                                     title: 'Drivers',
                                     onTap: () {
                                       _toggleDrawer();
-                                      // TODO: Navigate to drivers
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder:
+                                              (context) =>
+                                                  const DriversManagementScreen(),
+                                        ),
+                                      );
                                     },
                                   ),
                                   _buildDrawerItem(
@@ -653,7 +797,14 @@ class _OperatorHomeScreenState extends State<OperatorHomeScreen>
                                     title: 'Finance',
                                     onTap: () {
                                       _toggleDrawer();
-                                      // TODO: Navigate to finance
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder:
+                                              (context) =>
+                                                  const FinanceScreen(),
+                                        ),
+                                      );
                                     },
                                   ),
                                   _buildDrawerItem(
@@ -661,7 +812,14 @@ class _OperatorHomeScreenState extends State<OperatorHomeScreen>
                                     title: 'Analytics',
                                     onTap: () {
                                       _toggleDrawer();
-                                      // TODO: Navigate to analytics
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder:
+                                              (context) =>
+                                                  const AnalyticsScreen(),
+                                        ),
+                                      );
                                     },
                                   ),
                                   _buildDrawerItem(
@@ -684,7 +842,14 @@ class _OperatorHomeScreenState extends State<OperatorHomeScreen>
                                     title: 'Settings',
                                     onTap: () {
                                       _toggleDrawer();
-                                      // TODO: Navigate to settings
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder:
+                                              (context) =>
+                                                  const SettingsScreen(),
+                                        ),
+                                      );
                                     },
                                   ),
                                   _buildDrawerItem(
@@ -707,7 +872,14 @@ class _OperatorHomeScreenState extends State<OperatorHomeScreen>
                                     title: 'Help & Support',
                                     onTap: () {
                                       _toggleDrawer();
-                                      // TODO: Navigate to help & support
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder:
+                                              (context) =>
+                                                  const HelpSupportScreen(),
+                                        ),
+                                      );
                                     },
                                   ),
                                   _buildDrawerItem(
@@ -776,7 +948,12 @@ class _OperatorHomeScreenState extends State<OperatorHomeScreen>
                         ),
                         onTap: () {
                           Navigator.pop(context);
-                          // TODO: Navigate to add driver screen
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const AddDriverScreen(),
+                            ),
+                          );
                         },
                       ),
                       ListTile(
