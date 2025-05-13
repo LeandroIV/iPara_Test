@@ -7,7 +7,8 @@ class DriverRideRequestsScreen extends StatefulWidget {
   const DriverRideRequestsScreen({super.key});
 
   @override
-  State<DriverRideRequestsScreen> createState() => _DriverRideRequestsScreenState();
+  State<DriverRideRequestsScreen> createState() =>
+      _DriverRideRequestsScreenState();
 }
 
 class _DriverRideRequestsScreenState extends State<DriverRideRequestsScreen> {
@@ -53,26 +54,25 @@ class _DriverRideRequestsScreenState extends State<DriverRideRequestsScreen> {
             colors: [Colors.black, Color(0xFF1A1A1A)],
           ),
         ),
-        child: _isLoading
-            ? const Center(
-                child: CircularProgressIndicator(
-                  color: Colors.blue,
-                ),
-              )
-            : _rideRequests.isEmpty
+        child:
+            _isLoading
                 ? const Center(
-                    child: Text(
-                      'No ride requests found',
-                      style: TextStyle(color: Colors.white),
-                    ),
-                  )
-                : ListView.builder(
-                    itemCount: _rideRequests.length,
-                    itemBuilder: (context, index) {
-                      final request = _rideRequests[index];
-                      return _buildRideRequestCard(request);
-                    },
+                  child: CircularProgressIndicator(color: Colors.blue),
+                )
+                : _rideRequests.isEmpty
+                ? const Center(
+                  child: Text(
+                    'No ride requests found',
+                    style: TextStyle(color: Colors.white),
                   ),
+                )
+                : ListView.builder(
+                  itemCount: _rideRequests.length,
+                  itemBuilder: (context, index) {
+                    final request = _rideRequests[index];
+                    return _buildRideRequestCard(request);
+                  },
+                ),
       ),
     );
   }
@@ -91,23 +91,38 @@ class _DriverRideRequestsScreenState extends State<DriverRideRequestsScreen> {
       case RideRequestStatus.accepted:
         statusColor = Colors.green;
         break;
+      case RideRequestStatus.boarding:
+        statusColor = Colors.lightGreen;
+        break;
+      case RideRequestStatus.inTransit:
+        statusColor = Colors.teal;
+        break;
+      case RideRequestStatus.arrived:
+        statusColor = Colors.lightBlue;
+        break;
+      case RideRequestStatus.completed:
+        statusColor = Colors.blue;
+        break;
+      case RideRequestStatus.paid:
+        statusColor = Colors.deepPurple;
+        break;
       case RideRequestStatus.rejected:
         statusColor = Colors.red;
         break;
       case RideRequestStatus.cancelled:
         statusColor = Colors.grey;
         break;
-      case RideRequestStatus.completed:
-        statusColor = Colors.blue;
-        break;
     }
 
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      color: Colors.black.withOpacity(0.6),
+      color: Colors.black.withAlpha(153), // 0.6 opacity = 153 alpha (0.6 * 255)
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
-        side: BorderSide(color: statusColor.withOpacity(0.5), width: 1),
+        side: BorderSide(
+          color: statusColor.withAlpha(128),
+          width: 1,
+        ), // 0.5 opacity = 128 alpha
       ),
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -131,7 +146,9 @@ class _DriverRideRequestsScreenState extends State<DriverRideRequestsScreen> {
                     vertical: 4,
                   ),
                   decoration: BoxDecoration(
-                    color: statusColor.withOpacity(0.2),
+                    color: statusColor.withAlpha(
+                      51,
+                    ), // 0.2 opacity = 51 alpha (0.2 * 255)
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(color: statusColor, width: 1),
                   ),
@@ -157,52 +174,32 @@ class _DriverRideRequestsScreenState extends State<DriverRideRequestsScreen> {
                 const SizedBox(width: 4),
                 Text(
                   request.puvType,
-                  style: const TextStyle(
-                    color: Colors.white70,
-                    fontSize: 14,
-                  ),
+                  style: const TextStyle(color: Colors.white70, fontSize: 14),
                 ),
               ],
             ),
             const SizedBox(height: 8),
             Row(
               children: [
-                const Icon(
-                  Icons.location_on,
-                  color: Colors.white70,
-                  size: 16,
-                ),
+                const Icon(Icons.location_on, color: Colors.white70, size: 16),
                 const SizedBox(width: 4),
                 Text(
                   '${request.distanceKm.toStringAsFixed(1)} km away',
-                  style: const TextStyle(
-                    color: Colors.white70,
-                    fontSize: 14,
-                  ),
+                  style: const TextStyle(color: Colors.white70, fontSize: 14),
                 ),
                 const SizedBox(width: 16),
-                const Icon(
-                  Icons.access_time,
-                  color: Colors.white70,
-                  size: 16,
-                ),
+                const Icon(Icons.access_time, color: Colors.white70, size: 16),
                 const SizedBox(width: 4),
                 Text(
                   '${request.etaMinutes} min ETA',
-                  style: const TextStyle(
-                    color: Colors.white70,
-                    fontSize: 14,
-                  ),
+                  style: const TextStyle(color: Colors.white70, fontSize: 14),
                 ),
               ],
             ),
             const SizedBox(height: 8),
             Text(
               'Requested on $formattedDate',
-              style: const TextStyle(
-                color: Colors.white54,
-                fontSize: 12,
-              ),
+              style: const TextStyle(color: Colors.white54, fontSize: 12),
             ),
             if (request.status == RideRequestStatus.pending)
               Padding(
@@ -212,9 +209,7 @@ class _DriverRideRequestsScreenState extends State<DriverRideRequestsScreen> {
                   children: [
                     TextButton(
                       onPressed: () => _rejectRideRequest(request),
-                      style: TextButton.styleFrom(
-                        foregroundColor: Colors.red,
-                      ),
+                      style: TextButton.styleFrom(foregroundColor: Colors.red),
                       child: const Text('Reject'),
                     ),
                     const SizedBox(width: 8),

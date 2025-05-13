@@ -24,6 +24,7 @@ import 'driver_trip_history_screen.dart';
 import 'driver_routes_screen.dart';
 import 'driver_earnings_screen.dart';
 import 'driver_ride_requests_screen.dart';
+import 'active_ride_screen.dart';
 import '../commuter/notifications_screen.dart';
 import '../../widgets/ride_request_floating_window.dart';
 
@@ -359,6 +360,25 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
               duration: const Duration(seconds: 3),
             ),
           );
+
+          // Navigate to the active ride screen
+          final updatedRequest = await _rideRequestService.getRideRequest(
+            request.id,
+          );
+          if (updatedRequest != null && mounted) {
+            final ctx = context;
+            Navigator.push(
+              ctx,
+              MaterialPageRoute(
+                builder:
+                    (context) =>
+                        DriverActiveRideScreen(rideRequest: updatedRequest),
+              ),
+            ).then((_) {
+              // Clear the route when returning from the active ride screen
+              _clearRoute();
+            });
+          }
         }
       }
     } catch (e) {
@@ -979,43 +999,79 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          GestureDetector(
-                            onTap: () {
-                              setState(() {
-                                _isRoutePanelMinimized =
-                                    !_isRoutePanelMinimized;
-                              });
-                            },
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                vertical: 6,
-                                horizontal: 8,
-                              ),
-                              decoration: BoxDecoration(
-                                color: Colors.black,
-                                borderRadius: BorderRadius.circular(4),
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(
-                                    _isRoutePanelMinimized
-                                        ? Icons.chevron_right
-                                        : Icons.chevron_left,
-                                    color: Colors.white,
-                                    size: 18,
-                                  ),
-                                  const SizedBox(width: 4),
-                                  const Text(
-                                    'Available Routes',
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.bold,
+                          Padding(
+                            padding: const EdgeInsets.only(
+                              left: 4.0,
+                              right: 4.0,
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Row(
+                                  children: [
+                                    // Minimize/Expand button
+                                    GestureDetector(
+                                      onTap: () {
+                                        setState(() {
+                                          _isRoutePanelMinimized =
+                                              !_isRoutePanelMinimized;
+                                        });
+                                      },
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          vertical: 6,
+                                          horizontal: 8,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: Colors.black,
+                                          borderRadius: BorderRadius.circular(
+                                            4,
+                                          ),
+                                        ),
+                                        child: Icon(
+                                          _isRoutePanelMinimized
+                                              ? Icons.chevron_right
+                                              : Icons.chevron_left,
+                                          color: Colors.white,
+                                          size: 18,
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    const Text(
+                                      'Available Routes',
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                // Clear route button - only visible when a route is selected
+                                if (_selectedRoute != null)
+                                  GestureDetector(
+                                    onTap: _clearRoute,
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        const Icon(
+                                          Icons.clear,
+                                          color: Colors.white70,
+                                          size: 14,
+                                        ),
+                                        const SizedBox(width: 2),
+                                        const Text(
+                                          'Clear',
+                                          style: TextStyle(
+                                            color: Colors.white70,
+                                            fontSize: 12,
+                                          ),
+                                        ),
+                                      ],
                                     ),
                                   ),
-                                ],
-                              ),
+                              ],
                             ),
                           ),
                           const SizedBox(height: 8),
@@ -1438,6 +1494,9 @@ class _DriverHomeScreenState extends State<DriverHomeScreen>
                                                   const DriverRideRequestsScreen(),
                                         ),
                                       ).then((result) {
+                                        // Clear any existing routes first
+                                        _clearRoute();
+
                                         // If a ride request is returned, show directions to the commuter
                                         if (result != null &&
                                             result is RideRequest) {

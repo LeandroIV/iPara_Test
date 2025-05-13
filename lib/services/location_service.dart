@@ -7,6 +7,7 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import '../models/driver_location_model.dart';
 import '../models/commuter_location_model.dart';
 import '../models/vehicle_model.dart';
+import 'background_location_service.dart';
 
 class LocationService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -101,6 +102,44 @@ class LocationService {
     // Cancel any existing streams
     await stopLocationTracking();
 
+    // For drivers, use the background location service (Android only)
+    if (_userRole == 'driver') {
+      try {
+        debugPrint('Starting background location service for driver');
+
+        // Set initial status
+        await _updateOnlineStatus(true);
+
+        // Start the background service
+        final success = await BackgroundLocationService.startLocationTracking(
+          userId: _userId!,
+          puvType: _selectedPuvType ?? 'Unknown',
+          isLocationVisible: isVisible,
+        );
+
+        if (success) {
+          debugPrint('Background location service started successfully');
+        } else {
+          debugPrint(
+            'Failed to start background location service, falling back to foreground tracking',
+          );
+          _startForegroundTracking();
+        }
+      } catch (e) {
+        debugPrint('Error starting background location service: $e');
+        debugPrint('Falling back to foreground tracking');
+        _startForegroundTracking();
+      }
+    } else {
+      // For commuters, use the regular foreground tracking
+      _startForegroundTracking();
+    }
+
+    debugPrint('Location tracking started successfully');
+  }
+
+  // Start foreground location tracking
+  void _startForegroundTracking() async {
     // Set up the location stream with appropriate settings
     const locationSettings = LocationSettings(
       accuracy: LocationAccuracy.high,
@@ -111,8 +150,10 @@ class LocationService {
       locationSettings: locationSettings,
     ).listen(_updateLocation);
 
-    // Set initial status
-    await _updateOnlineStatus(true);
+    // Set initial status if driver
+    if (_userRole == 'driver') {
+      await _updateOnlineStatus(true);
+    }
 
     // Get current position and update location immediately
     try {
@@ -124,18 +165,41 @@ class LocationService {
     } catch (e) {
       debugPrint('Error getting initial position: $e');
     }
-
-    debugPrint('Location tracking started successfully');
   }
 
   Future<void> stopLocationTracking() async {
+    // Cancel foreground tracking
     await _positionStream?.cancel();
     _positionStream = null;
+
+    // Stop background service if user is a driver
+    if (_userRole == 'driver') {
+      try {
+        await BackgroundLocationService.stopLocationTracking();
+        debugPrint('Background location service stopped');
+      } catch (e) {
+        debugPrint('Error stopping background location service: $e');
+      }
+    }
+
+    // Update online status to false
     await _updateOnlineStatus(false);
   }
 
   Future<void> updateLocationVisibility(bool isVisible) async {
     _isLocationVisible = isVisible;
+
+    // Update background service visibility if user is a driver
+    if (_userRole == 'driver') {
+      try {
+        await BackgroundLocationService.updateLocationVisibility(isVisible);
+        debugPrint('Background service visibility updated to: $isVisible');
+      } catch (e) {
+        debugPrint('Error updating background service visibility: $e');
+      }
+    }
+
+    // Update location in Firestore
     final position = await Geolocator.getCurrentPosition();
     await _updateLocation(position);
   }
@@ -332,6 +396,14 @@ class LocationService {
         if (_userRole == 'driver' && puvType != null) {
           updateData['iconType'] = puvType.toLowerCase();
           debugPrint('Added iconType: ${puvType.toLowerCase()}');
+
+          // Update the background service with the new PUV type
+          try {
+            await BackgroundLocationService.updatePuvType(puvType);
+            debugPrint('Background service PUV type updated to: $puvType');
+          } catch (e) {
+            debugPrint('Error updating background service PUV type: $e');
+          }
         }
 
         // Log the data being sent to Firestore

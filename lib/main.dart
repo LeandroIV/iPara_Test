@@ -18,6 +18,7 @@ import 'screens/debug/debug_driver_icons.dart';
 import 'screens/debug/firestore_test_screen.dart';
 import 'services/user_service.dart';
 import 'services/notification_service.dart';
+import 'services/background_location_service.dart';
 import 'models/user_role.dart';
 
 final FirebaseFirestore firestore = FirebaseFirestore.instance;
@@ -64,6 +65,11 @@ void main() async {
     debugPrint('Notification service initialization error: $e');
     // Continue anyway to show the app
   }
+
+  // Background location service initialization will be implemented in a future update
+  debugPrint(
+    'Background location service will be implemented in a future update',
+  );
 
   debugPrint('Starting app...');
   runApp(const MyApp());
