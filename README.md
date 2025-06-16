@@ -2,6 +2,20 @@
 
 A Flutter application for tracking public utility vehicles (PUVs) in real-time.
 
+iPara is an intelligent mobility platform I developed for my Technopreneurship course which is our group's startup, aiming to revolutionize public transportation in Cagayan de Oro City, Philippines. The app empowers commuters and drivers alike by offering real-time tracking, smart route planning, and live vehicle availability — making daily commuting safer, faster, and more reliable.
+
+With features such as:
+
+📍 Live location tracking of public utility vehicles (PUVs)
+
+🗺️ Route recommendations based on congestion and travel time
+
+⏱️ ETA predictions for better trip planning
+
+📊 Data analytics for transport operators and LGUs
+
+iPara bridges the gap between traditional transport systems and smart city infrastructure. By harnessing GPS data, mobile connectivity, and AI-driven route optimization, it provides a seamless and commuter-friendly experience that supports inclusive urban mobility.
+
 ## Requirements
 
 - Flutter SDK (version 3.0.0 or higher)
